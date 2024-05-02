@@ -9,7 +9,9 @@ import tempfile
 import os
 from functools import partial
 import multiprocessing as mp
+import faulthandler
 
+faulthandler.enable()
 
 def get_extractor():
     """
@@ -111,11 +113,24 @@ def extract_for_case(curr_row,extractor,min_voxels,im_dir):
     1) get study for patient and extract path to ct's and SUV images based on study_0_or_1 an patient id
     2) extract information about Deauville from each study plus study_0_or_1 info
     """
+    csv_res_path="/workspaces/pilot_lymphoma/data/extracted_features_pet_full.csv"
+    df_created=False
+    if(os.path.exists(csv_res_path)==False):
+        pd.DataFrame().to_csv(csv_res_path)
+        df_created=True
+    res_csv=pd.read_csv(csv_res_path)
+
     curr_row=curr_row[1]
     #extract necessary information from dataframe
     pat_id= curr_row["pat_id"]
     Deauville= curr_row["deauville_1"]
     study_0_or_1= curr_row["study_0_or_1"]
+
+    #check if we already have extracted features for this patient
+    if(not df_created):
+        if(len(res_csv.loc[(res_csv["pat_id"]==pat_id) & (res_csv["study_0_or_1"]==study_0_or_1)])>0):
+            print(f" pat_id {pat_id} study_0_or_1 {study_0_or_1} already extracted")
+            return []
 
     #get paths to the files from main folder
     reg_form="lin_transf"
@@ -153,6 +168,28 @@ def extract_for_case(curr_row,extractor,min_voxels,im_dir):
         #### adding features from all lesions at once
         res.append(extract_for_lesions((f"mask_{pat_id}_{study_0_or_1}",1000,summed),pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
                                  ,Deauville=Deauville,im_dir=im_dir,study_0_or_1=study_0_or_1))
+    
+    ############3333
+    # for_df= list(filter(lambda el:len(el)>0,for_df))
+    res= list(filter(lambda el:"original_shape_Maximum2DDiameterSlice_pet" in el.keys(),res))
+    res= list(filter(lambda el:el["original_shape_Maximum2DDiameterSlice_pet"]!="" and el["original_shape_Maximum2DDiameterSlice_pet"]!=" ",res))
+
+
+    df_to_append=pd.DataFrame(res)
+    if(not df_created):
+        for_df=for_df.append(df_to_append)
+    else:
+        for_df=df_to_append
+
+    # print(for_df[1])
+    #flattening
+    # for_df=list(itertools.chain(*for_df))
+    # os.makedirs("/workspaces/konwersjaJsonData/explore",exist_ok=True)
+
+    pd.DataFrame(for_df).to_csv(csv_res_path)
+
+
+
     return res
 
 
