@@ -261,7 +261,7 @@ RUN git config --global user.name "Jakub Mitura"
 
 
 
-RUN python3 -m  pip install pyradiomics
+RUN python3 -m  pip install pyradiomics mrmr_selection shap ngboost
 #ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 #/usr/local/cuda/lib64
 #/usr/local/cuda/extras/CUPTI

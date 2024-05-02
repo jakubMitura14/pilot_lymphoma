@@ -15,7 +15,7 @@ def get_extractor():
     """
     get pyradiomics extractor object
     """
-    params="/workspaces/konwersjaJsonData/radiomics/Params.yaml"
+    params="/workspaces/pilot_lymphoma/data/Params.yaml"
     extractor = featureextractor.RadiomicsFeatureExtractor(params)
     extractor.enableAllFeatures()
     return extractor
@@ -44,46 +44,47 @@ def extract_for_lesion(modality,bool_lesion,extractor,spacing,mod_name,lesion_nu
     given a single modality and single lesion from h5 file, extract features for each lesion
     """ 
     
-    try:
-        bool_lesion_sum = np.sum(bool_lesion.flatten())
-        if(bool_lesion_sum<min_voxels):
-            return {}
+    # try:
+    bool_lesion_sum = np.sum(bool_lesion.flatten())
+    if(bool_lesion_sum<min_voxels):
+        return {}
 
-        sitk_mod=sitk.GetImageFromArray(modality)
-        sitk_les=sitk.GetImageFromArray(bool_lesion.astype(np.uint8))
+    # print(f"mmmmm modality {type(modality)} {modality.shape} bool_lesion {type(bool_lesion)} {bool_lesion.shape} {np.sum(bool_lesion)}")
+    sitk_mod=sitk.GetImageFromArray(modality)
+    sitk_les=sitk.GetImageFromArray(bool_lesion.astype(np.uint8))
 
-        
-        loc_dir=f"{im_dir}/{pat_id}/{study_0_or_1}/{mod_name}/{lesion_num}"
-        os.makedirs(loc_dir, exist_ok=True)
-        lab_path=save_image_to_temp(sitk_les,loc_dir,"lab",spacing)
-        
-        
-        temp_dir=tempfile.mkdtemp()
-        im_path=save_image_to_temp(sitk_mod,temp_dir,"modal",spacing)
-        shutil.rmtree(temp_dir)
-        
-        
-        extracted=extractor.execute(im_path, lab_path, 1)
-        res={}
-        loc_add_name=f"_{mod_name}"
-        keys=list(extracted.keys())
+    
+    loc_dir=f"{im_dir}/{pat_id}/{study_0_or_1}/{mod_name}/{lesion_num}"
+    os.makedirs(loc_dir, exist_ok=True)
+    lab_path=save_image_to_temp(sitk_les,loc_dir,"lab",spacing)
+    
+    
+    temp_dir=tempfile.mkdtemp()
+    im_path=save_image_to_temp(sitk_mod,temp_dir,"modal",spacing)
+    # shutil.rmtree(temp_dir)
+    
+    
+    extracted=extractor.execute(im_path, lab_path, 1)
+    res={}
+    loc_add_name=f"_{mod_name}"
+    keys=list(extracted.keys())
 
-        res[f"pat_id"]=pat_id
-        res[f"lesion_num"]=lesion_num
-        res[f"study_0_or_1"]=study_0_or_1
-        res[f"Deauville"]=Deauville
-        res[f"lab_path"]=lab_path
-        res[f"mod_name"]=mod_name
-        res[f"vol_in_mm3"]=np.sum(bool_lesion)*np.prod(spacing)
-        
+    res[f"pat_id"]=pat_id
+    res[f"lesion_num"]=lesion_num
+    res[f"study_0_or_1"]=study_0_or_1
+    res[f"Deauville"]=Deauville
+    res[f"lab_path"]=lab_path
+    res[f"mod_name"]=mod_name
+    res[f"vol_in_mm3"]=np.sum(bool_lesion)*np.prod(spacing)
+    
 
-        for keyy in keys:
-            if("diagnostics" not in keyy):
-                res[keyy+loc_add_name]=extracted[keyy]
+    for keyy in keys:
+        if("diagnostics" not in keyy):
+            res[keyy+loc_add_name]=extracted[keyy]
         # res=pd.Series(res)
-    except Exception as e:
-        print(f"error {e}")
-        res={}
+    # except Exception as e:
+    #     print(f"error {e}")
+    #     res={}
  
 
     return res
@@ -94,38 +95,63 @@ def extract_for_lesions(lesion_with_num,pet,ct,extractor,spacing,pat_id,min_voxe
     """
     given a modality from h5 file, extract features for each lesion
     """   
-
+    print(f"  {len(lesion_with_num)}")
+    # if(len(lesion_with_num)<3):
+    #     return {}
     dicts= list(map(lambda modality_with_name:extract_for_lesion(modality_with_name[1],lesion_with_num[2]
-    ,extractor,spacing,modality_with_name[0],lesion_with_num[1],pat_id,min_voxels,lesion_with_num[0],Deauville,im_dir,study_0_or_1)
+    ,extractor,spacing,modality_with_name[0],lesion_with_num[1],pat_id,min_voxels,Deauville,im_dir,study_0_or_1)
                     ,[("pet",pet),("ct",ct)]))
     return {**dicts[0],**dicts[1]}
 
 
 
-def extract_for_case(group,extractor,spacing,pat_id,min_voxels,douville_df_row):
+def extract_for_case(curr_row,extractor,min_voxels,im_dir):
     """
     given paths, extract features for each lesion and each modality
+    1) get study for patient and extract path to ct's and SUV images based on study_0_or_1 an patient id
+    2) extract information about Deauville from each study plus study_0_or_1 info
     """
+    curr_row=curr_row[1]
+    #extract necessary information from dataframe
+    pat_id= curr_row["pat_id"]
+    Deauville= curr_row["deauville_1"]
+    study_0_or_1= curr_row["study_0_or_1"]
 
+    #get paths to the files from main folder
+    reg_form="lin_transf"
+    path_curr_folder=f"{path_folder_files}/pat_{pat_id}/{reg_form}"
+    path_SUV= f"{path_curr_folder}/study_{study_0_or_1}_SUVS.nii.gz"
+    path_CT= f"{path_curr_folder}/study_{study_0_or_1}_ct_soft.nii.gz"
+    path_mask= f"{path_curr_folder}/study_{study_0_or_1}_tmtvNet_SEG.nii.gz"
+    if(os.path.exists(path_SUV)==False or os.path.exists(path_CT)==False or os.path.exists(path_mask)==False):
+        return []
+    #load the images
+    img_SUV=sitk.ReadImage(path_SUV)
+    spacing=img_SUV.GetSpacing()
 
-    masks=list(map(lambda k: group[k][:],masks_keys))
-
-    
+    img_CT=sitk.ReadImage(path_CT)
+    img_mask=sitk.ReadImage(path_mask)
+    pet=sitk.GetArrayFromImage(img_SUV)
+    ct=sitk.GetArrayFromImage(img_CT)
+   
 
     #we want to get the list of tuples where each tuples has 3 entries (key_name, inferred lesion number, single lesion boolean mask)
-    list_bool_lesions=(mask_tupl[0],  get_lesions_from_mask(mask_tupl[1]))
-    summed= np.sum(np.stack(np.stack(list_bool_lesions,axis=0)),axis=0)
-    list_bool_lesions=list(map(lambda el:  list(map(lambda inner_el:(el[0],inner_el[0],inner_el[1]) ,list(enumerate(el[1])) ))    ,list_bool_lesions))
-    list_bool_lesions=list(itertools.chain(*list_bool_lesions))
-
+    list_bool_lesions= (f"mask_{pat_id}_{study_0_or_1}",  get_lesions_from_mask(sitk.GetArrayFromImage(img_mask)))
+    # print(f"gggg {list(map(lambda el: el.shape ,list_bool_lesions[1]))}")
+    summed= np.sum(np.stack(np.stack(list_bool_lesions[1],axis=0)),axis=0)
+    list_bool_lesions=list(map(lambda inner_el:(list_bool_lesions[0],inner_el[0],inner_el[1]) ,list(enumerate(list_bool_lesions[1])) ))
+    # list_bool_lesions=list(itertools.chain(*list_bool_lesions))
     res=[]
     if(len(list_bool_lesions)>0):
+
         with mp.Pool(processes = mp.cpu_count()) as pool:
             res=pool.map(partial(extract_for_lesions,pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
                                  ,Deauville=Deauville,im_dir=im_dir,study_0_or_1=study_0_or_1),list_bool_lesions)
-    
+        # res=list(map(partial(extract_for_lesions,pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
+        #                         ,Deauville=Deauville,im_dir=im_dir,study_0_or_1=study_0_or_1),list_bool_lesions))
+           
         #### adding features from all lesions at once
-        res.append(extract_for_lesions((1000,summed),pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
+        res.append(extract_for_lesions((f"mask_{pat_id}_{study_0_or_1}",1000,summed),pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
                                  ,Deauville=Deauville,im_dir=im_dir,study_0_or_1=study_0_or_1))
     return res
 
@@ -149,7 +175,23 @@ alternatively we can construct simple graph where edges between lesions will ind
 
 extractor=get_extractor()
 
-for_df=list(map( lambda case: extract_for_case(non_iso[case],extractor,spacing,case,is_cancer_dicts,isups_dict,fold_val,min_voxels),cases))
+
+
+path_deauvill_df="/workspaces/pilot_lymphoma/data/all_deauville_form.csv"
+path_folder_files="/root/data/prepared_registered"
+im_dir="/workspaces/pilot_lymphoma/data/for_radiomics_folder"
+
+deauvill_df=pd.read_csv(path_deauvill_df)
+
+# curr_row=list(deauvill_df.iterrows())[0][1]
+min_voxels=4
+
+for_df=[]
+rows=list(deauvill_df.iterrows())
+for_df=list(map(partial(extract_for_case,extractor=extractor,min_voxels=min_voxels,im_dir=im_dir),rows))
+
+
+# for_df=list(map( lambda case: extract_for_case(non_iso[case],extractor,spacing,case,is_cancer_dicts,isups_dict,fold_val,min_voxels),cases))
 for_df= list(filter(lambda el:len(el)>0,for_df))
 for_df=list(itertools.chain(*for_df))
 for_df= list(filter(lambda el:"original_shape_Maximum2DDiameterSlice_pet" in el.keys(),for_df))
@@ -158,6 +200,6 @@ for_df= list(filter(lambda el:el["original_shape_Maximum2DDiameterSlice_pet"]!="
 # print(for_df[1])
 #flattening
 # for_df=list(itertools.chain(*for_df))
-os.makedirs("/workspaces/konwersjaJsonData/explore",exist_ok=True)
-csv_res_path="/workspaces/konwersjaJsonData/explore/extracted_features_c.csv"
+# os.makedirs("/workspaces/konwersjaJsonData/explore",exist_ok=True)
+csv_res_path="/workspaces/pilot_lymphoma/data/extracted_features_pet_full.csv"
 pd.DataFrame(for_df).to_csv(csv_res_path)
