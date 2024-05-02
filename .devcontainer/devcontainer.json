@@ -31,13 +31,15 @@
         "-v", "/tmp/.X11-unix:/tmp/.X11-unix"
 		],
 	// Add the IDs of extensions you want installed when the container is created.
-	"extensions": [
-		"ms-python.python"
-		// ,"julialang.language-julia"
-		// "ms-python.vscode-pylance"
-	],
+    "extensions": [
+        "ms-python.python",
+        "ms-toolsai.jupyter",
+        "ms-azuretools.vscode-docker",
+        "github.copilot"
+        // "ms-python.vscode-pylance"
+    ],
 	"mounts": [
-		  "source=/media/jm/hddData/datasets/Task09_Spleen/Task09_Spleen,target=/root/data,type=bind,consistency=cached"
+		 "source=/home/uzytkownik/projects_new/slicer_data,target=/root/data,type=bind,consistency=cached"
 	  ],
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.

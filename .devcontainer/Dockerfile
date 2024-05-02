@@ -259,6 +259,9 @@ RUN apt install nautilus -y
 RUN git config --global user.email "jakub.mitura@gmail.com"
 RUN git config --global user.name "Jakub Mitura"
 
+
+
+RUN python3 -m  pip install pyradiomics
 #ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 #/usr/local/cuda/lib64
 #/usr/local/cuda/extras/CUPTI
