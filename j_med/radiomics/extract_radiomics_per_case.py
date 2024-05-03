@@ -131,12 +131,15 @@ def extract_for_case(curr_row,extractor,min_voxels,im_dir):
         pd.DataFrame().to_csv(csv_res_path)
         df_created=True
     res_csv=pd.read_csv(csv_res_path)
+    if("pat_id" not in list(res_csv.keys())):
+        df_created=True
 
     curr_row=curr_row[1]
     #extract necessary information from dataframe
     pat_id= curr_row["pat_id"]
     Deauville= curr_row["deauville_1"]
     study_0_or_1= curr_row["study_0_or_1"]
+    
 
     #check if we already have extracted features for this patient
     if(not df_created):
