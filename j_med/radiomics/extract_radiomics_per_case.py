@@ -19,8 +19,20 @@ def get_extractor():
     """
     params="/workspaces/pilot_lymphoma/data/Params.yaml"
     extractor = featureextractor.RadiomicsFeatureExtractor(params)
-    extractor.enableAllFeatures()
+    extractor.disableAllFeatures()
+    extractor.enableFeatureClassByName('firstorder')
+    extractor.enableFeatureClassByName('glcm')
+    extractor.enableFeatureClassByName('gldm')
+    extractor.enableFeatureClassByName('glrlm')
+    extractor.enableFeatureClassByName('glszm')
+    extractor.enableFeatureClassByName('ngtdm')
     return extractor
+
+
+
+# @workspace given extractor initialized by code  ```     extractor.enableAllFeatures()
+#     extractor.disableFeatureClassByName('shape2D')
+#     extractor.disableFeatureClassByName('shape3D')``` I want to switch off 2D and 3D shape features However current code give error  ```'RadiomicsFeatureExtractor' object has no attribute 'disableFeatureClassByName'```
 
 
 def get_lesions_from_mask(mask):
@@ -159,11 +171,11 @@ def extract_for_case(curr_row,extractor,min_voxels,im_dir):
     res=[]
     if(len(list_bool_lesions)>0):
 
-        with mp.Pool(processes = mp.cpu_count()) as pool:
-            res=pool.map(partial(extract_for_lesions,pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
-                                 ,Deauville=Deauville,im_dir=im_dir,study_0_or_1=study_0_or_1),list_bool_lesions)
-        # res=list(map(partial(extract_for_lesions,pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
-        #                         ,Deauville=Deauville,im_dir=im_dir,study_0_or_1=study_0_or_1),list_bool_lesions))
+        # with mp.Pool(processes = mp.cpu_count()) as pool:
+        #     res=pool.map(partial(extract_for_lesions,pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
+        #                          ,Deauville=Deauville,im_dir=im_dir,study_0_or_1=study_0_or_1),list_bool_lesions)
+        res=list(map(partial(extract_for_lesions,pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
+                                ,Deauville=Deauville,im_dir=im_dir,study_0_or_1=study_0_or_1),list_bool_lesions))
            
         #### adding features from all lesions at once
         res.append(extract_for_lesions((f"mask_{pat_id}_{study_0_or_1}",1000,summed),pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
