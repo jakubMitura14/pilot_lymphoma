@@ -47,88 +47,71 @@ import flax
 import jax_metrics as jm
 
 from ..testUtils.tensorboard_utils import *
-# import augmentations.simpleTransforms
-# from augmentations.simpleTransforms import main_augment
-
-# from torch.utils.tensorboard import SummaryWriter
-# import torchvision.transforms.functional as F
-# import torchvision
-
 from .geometric_sv_model import Pilot_model
 
-
-
-
-# SCRIPT_DIR = '/root/externalRepos/big_vision'
-# sys.path.append(str(SCRIPT_DIR))
-
-# from big_vision import optax as bv_optax
-# from big_vision.pp import builder as pp_builder
-# from big_vision.trainers.proj.gsam.gsam import gsam_gradient
-
-from .config_out_image import get_cfg
+from .config_out_image import get_cfg,get_cfg_fiducial
 from .tensorboard_for_out_image import *
 from .data_utils import *
 import os
 import sys
 import pathlib
 
-config.update("jax_debug_nans", True)
-# Hide any GPUs from TensorFlow. Otherwise TF might reserve memory and make
-# it unavailable to JAX.
-tf.config.experimental.set_visible_devices([], 'GPU')
+# config.update("jax_debug_nans", True)
+# # Hide any GPUs from TensorFlow. Otherwise TF might reserve memory and make
+# # it unavailable to JAX.
+# tf.config.experimental.set_visible_devices([], 'GPU')
 
 
 #get configuration
-cfg= get_cfg()
+cfg= get_cfg_fiducial()
 file_writer=setup_tensorboard()
 
-# @partial(jax.jit, backend="cpu",static_argnums=(1,2,3))
-# @functools.partial(jax.pmap,static_broadcasted_argnums=(1,2,3), axis_name='ensemble')#,static_broadcasted_argnums=(2)
-# def initt(rng_2,cfg:ml_collections.config_dict.FrozenConfigDict,model,dynamic_cfg):
-#   img_size=list(cfg.img_size)
-#   img_size[0]=img_size[0]//jax.local_device_count()
-#   rng,rng_mean=jax.random.split(rng_2)
-#   dummy_input = jnp.zeros(img_size, jnp.float32)
-#   # params = flax.core.unfreeze(model.init(rng, dummy_input,dynamic_cfg))["params"]  
-#   params = model.init({'params': rng,'to_shuffle':rng_mean  }, dummy_input,dynamic_cfg)['params'] 
-
-#   cosine_decay_scheduler = optax.cosine_decay_schedule(cfg.learning_rate, decay_steps=cfg.total_steps, alpha=0.95)#,exponent=1.1
-#   tx = optax.chain(
-#         optax.clip_by_global_norm(6.0),  # Clip gradients at norm 
-#         optax.lion(learning_rate=cfg.learning_rate))
-
-#   return train_state.TrainState.create(
-#       apply_fn=model.apply, params=params, tx=tx)
-
-
-
-@functools.partial(jax.pmap,static_broadcasted_argnums=(1,2), axis_name='ensemble')#,static_broadcasted_argnums=(2)
-def initt(rng_2,cfg:ml_collections.config_dict.FrozenConfigDict,model):
-  """Creates initial `TrainState`."""
+@partial(jax.jit, backend="cpu",static_argnums=(1,2,3))
+@functools.partial(jax.pmap,static_broadcasted_argnums=(1,2,3), axis_name='ensemble')#,static_broadcasted_argnums=(2)
+def initt(rng_2,cfg:ml_collections.config_dict.FrozenConfigDict,model,dynamic_cfg):
   img_size=list(cfg.img_size)
   img_size[0]=img_size[0]//jax.local_device_count()
-  input=jnp.ones(tuple(img_size))
-  rng_main,rng_mean=jax.random.split(rng_2)
+  rng,rng_mean=jax.random.split(rng_2)
+  dummy_input = jnp.zeros(img_size, jnp.float32)
+  # params = flax.core.unfreeze(model.init(rng, dummy_input,dynamic_cfg))["params"]  
+  params = model.init({'params': rng,'to_shuffle':rng_mean  }, dummy_input,dynamic_cfg)['params'] 
 
-  #jax.random.split(rng_2,num=1 )
-  params = model.init({'params': rng_main,'to_shuffle':rng_mean  }, input)['params'] # initialize parameters by passing a template image #,'texture' : rng_mean
-  # cosine_decay_scheduler = optax.cosine_decay_schedule(cfg.learning_rate, decay_steps=cfg.total_steps, alpha=0.95)#,exponent=1.1
-  decay_scheduler=optax.linear_schedule(cfg.learning_rate, cfg.learning_rate/10, cfg.total_steps, transition_begin=0)
-  
-  joined_scheduler=optax.join_schedules([optax.constant_schedule(cfg.learning_rate*10),optax.constant_schedule(cfg.learning_rate)], [10])
-
-
+  cosine_decay_scheduler = optax.cosine_decay_schedule(cfg.learning_rate, decay_steps=cfg.total_steps, alpha=0.95)#,exponent=1.1
   tx = optax.chain(
-        optax.clip_by_global_norm(3.0),  # Clip gradients at norm 
-        # optax.lion(learning_rate=joined_scheduler)
-        # optax.lion(learning_rate=cfg.learning_rate)
-        optax.lion(learning_rate=decay_scheduler)
-        # optax.adafactor()
+        optax.clip_by_global_norm(6.0),  # Clip gradients at norm 
+        optax.lion(learning_rate=cfg.learning_rate))
+
+  return train_state.TrainState.create(
+      apply_fn=model.apply, params=params, tx=tx)
+
+
+
+# @functools.partial(jax.pmap,static_broadcasted_argnums=(1,2), axis_name='ensemble')#,static_broadcasted_argnums=(2)
+# def initt(rng_2,cfg:ml_collections.config_dict.FrozenConfigDict,model):
+#   """Creates initial `TrainState`."""
+#   img_size=list(cfg.img_size)
+#   img_size[0]=img_size[0]//jax.local_device_count()
+#   input=jnp.ones(tuple(img_size))
+#   rng_main,rng_mean=jax.random.split(rng_2)
+
+#   #jax.random.split(rng_2,num=1 )
+#   params = model.init({'params': rng_main,'to_shuffle':rng_mean  }, input)['params'] # initialize parameters by passing a template image #,'texture' : rng_mean
+#   # cosine_decay_scheduler = optax.cosine_decay_schedule(cfg.learning_rate, decay_steps=cfg.total_steps, alpha=0.95)#,exponent=1.1
+#   decay_scheduler=optax.linear_schedule(cfg.learning_rate, cfg.learning_rate/10, cfg.total_steps, transition_begin=0)
+  
+#   joined_scheduler=optax.join_schedules([optax.constant_schedule(cfg.learning_rate*10),optax.constant_schedule(cfg.learning_rate)], [10])
+
+
+#   tx = optax.chain(
+#         optax.clip_by_global_norm(3.0),  # Clip gradients at norm 
+#         # optax.lion(learning_rate=joined_scheduler)
+#         # optax.lion(learning_rate=cfg.learning_rate)
+#         optax.lion(learning_rate=decay_scheduler)
+#         # optax.adafactor()
         
-        )
-  # print(f"ppppppppparams  {params}")
-  return train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx)
+#         )
+#   # print(f"ppppppppparams  {params}")
+#   return train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx)
 
 
 
@@ -143,33 +126,12 @@ def update_fn(state, image,booll_label, cfg,model):
     # print(f"booll_label {booll_label.shape} conved {conved.shape}")
     return jnp.mean(loss)
 
-  # learning_rate = sched_fn(step) * cfg.lr
-  # l=None
-  # grads=None
-  # if(cfg.is_gsam):
-
-  # l, grads = gsam_gradient(loss_fn=loss_fn, params=state.params, inputs=image,
-  #     targets=booll_label, lr=cfg.lr, **cfg.gsam)
-  # l, grads = jax.lax.pmean((l, grads), axis_name="batch")    
-
   # else:
   grad_fn = jax.value_and_grad(loss_fn)
   l, grads = grad_fn(state.params,image,booll_label)
   state=state.apply_gradients(grads=grads)
 
-  # state = update_model(state, grads)
 
-  # l = jax.lax.pmean((l), axis_name="batch")
-
-
-  # updates, opt = tx.update(grads, opt, params)
-  # params = optax.apply_updates(params, updates)
-  # gs = jax.tree_leaves(bv_optax.replace_frozen(cfg.schedule, grads, 0.))
-  # measurements["l2_grads"] = jnp.sqrt(sum(jnp.vdot(g, g) for g in gs))
-  # ps = jax.tree_util.tree_leaves(params)
-  # measurements["l2_params"] = jnp.sqrt(sum(jnp.vdot(p, p) for p in ps))
-  # us = jax.tree_util.tree_leaves(updates)
-  # measurements["l2_updates"] = jnp.sqrt(sum(jnp.vdot(u, u) for u in us))
 
   return state,l
 
@@ -182,8 +144,7 @@ def simple_apply(state, image,labels,model):
   conved= nn.sigmoid(conved)
   conved_orig=conved
   conved=jnp.round(conved).astype(bool)
-  # batch_updates = metric.batch_updates(target=labels, preds=nn.sigmoid(conved))
-  # batch_updates = metric.update(target=labeels, preds=nn.sigmoid(conved))
+
   correct= jnp.equal(conved.flatten(),labels.flatten())
   return conved,conved_orig,correct
 
@@ -196,25 +157,9 @@ def train_epoch(batch_images,booll_label,epoch,index
                 ,state
                 ):    
   epoch_loss=[]
-  # rngs_loop = flax.jax_utils.replicate(rng_loop)
-  # print(f"state {state[1]}")
+
   state,loss=update_fn(state, batch_images, booll_label,cfg,model)
   epoch_loss.append(jnp.mean(jax_utils.unreplicate(loss).flatten())) 
-
-  # #if indicated in configuration will save the parameters
-  # if(index==0):
-  #   save_checkpoint(index,epoch,cfg,checkPoint_folder,state,np.mean(epoch_loss))
-  
-
-  # if(index==0 and epoch%cfg.divisor_logging==0):
-  #   # # losses,masks,out_image=model.apply({'params': state.params}, batch_images[0,:,:,:,:],dynamic_cfg, rngs={'to_shuffle': random.PRNGKey(2)})#, rngs={'texture': random.PRNGKey(2)}
-  #   # losses,masks=simple_apply(state, batch_images, dynamic_cfg,cfg,index,model)
-  #   # #overwriting masks each time and saving for some tests and debugging
-  #   # save_examples_to_hdf5(masks,batch_images_prim,curr_label)
-  #   # #saving images for monitoring ...
-  #   # mask_0=save_images(batch_images_prim,slicee,cfg,epoch,file_writer,curr_label,masks)
-  #   with file_writer.as_default():
-  #       tf.summary.scalar(f"mask_0 mean", np.mean(mask_0.flatten()), step=epoch)    
 
   with file_writer.as_default():
       tf.summary.scalar(f"train loss ", np.mean(epoch_loss),       step=epoch)

@@ -9,7 +9,7 @@
 	},
 	// Set *default* container specific settings.json values on container create.
 	"settings": { 
-		"python.defaultInterpreterPath": "/usr/lib/python3.9"
+		"python.defaultInterpreterPath": "/usr/lib/python3.10"
 		// "python.linting.enabled": true,
 		// "python.linting.pylintEnabled": true,
 		// "python.formatting.autopep8Path": "/usr/local/py-utils/bin/autopep8",
@@ -23,8 +23,8 @@
 		// "python.linting.pylintPath": "/usr/local/py-utils/bin/pylint"
 	},
 	"runArgs": [
-		"--init", "--gpus", "all"
-        ,"--ipc", "host",
+		// "--init", "--gpus", "all"
+        "--ipc", "host",
         "--net", "host", 
 		"--privileged", 
         "-e", "DISPLAY=${env:DISPLAY}",
@@ -39,7 +39,10 @@
         // "ms-python.vscode-pylance"
     ],
 	"mounts": [
-		 "source=/home/uzytkownik/projects_new/slicer_data,target=/root/data,type=bind,consistency=cached"
+		 "source=/home/jakubmitura/projects/datasets/Task09_Spleen,target=/root/data,type=bind,consistency=cached",
+		 "source=/home/jakubmitura/projects/datasets/prepared_registered,target=/root/data,type=bind,consistency=cached"
+
+		 
 	  ],
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.

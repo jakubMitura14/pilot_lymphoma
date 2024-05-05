@@ -48,7 +48,7 @@ def apply_on_single(pathh,registered_path, total_slices):
     regg=reg_a_to_b_by_metadata_single_b(one,transformed)
     one= sitk.GetArrayFromImage(sitk.ReadImage(one))
 
-    total_slices=420
+    # total_slices=420
     diff= regg.shape[0]-total_slices
     diff_quart= diff/6  
     diff_end=round(diff_quart*5)

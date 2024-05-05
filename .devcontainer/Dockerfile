@@ -1,6 +1,14 @@
-FROM nvcr.io/nvdlfwea/jax/jax:23.05-py3
+# FROM nvcr.io/nvdlfwea/jax/jax:23.05-py3
+FROM ubuntu:20.04
+
+
+# FROM matthewfeickert/docker-python3-ubuntu
 
 ENV DEBIAN_FRONTEND=noninteractive
+
+
+
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
         software-properties-common \
         build-essential \
@@ -47,6 +55,60 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libtiff-dev \
         uuid-dev \
         libwebp-dev 
+
+
+RUN apt-get -y update
+RUN apt-get install -y software-properties-common
+RUN add-apt-repository -y ppa:deadsnakes/ppa
+RUN apt-get -y update
+RUN apt-get install -y python3.10
+        
+# Install some basic utilities
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    sudo \
+    git \
+    bzip2 \
+    libx11-6 \
+    build-essential \
+    wget\
+    manpages-dev\
+    g++\
+    gcc\
+    nodejs\
+    libssl-dev\
+    unzip\
+    libidn11-dev\
+    libglu1-mesa-dev 
+    # libpangox-1.0-dev \
+    # libpangoxft-1.0-0 \
+    #cuda-11.3\
+    #nvidia-cuda-toolkit-11-3\
+    # && rm -rf /var/lib/apt/lists/*
+
+
+# ENV PATH="/opt/cmake/bin:${PATH}"
+ENV NB_USER sliceruser
+ENV NB_UID 1000
+ENV HOME /home/${NB_USER}
+
+RUN adduser --disabled-password \
+    --gecos "Default user" \
+    --uid ${NB_UID} \
+    ${NB_USER}
+
+# RUN apt-get update && \
+#     apt-get install -y software-properties-common && \
+#     add-apt-repository -y ppa:deadsnakes/ppa && \
+#     apt-get update && \
+#     apt install -y python3.10 && \
+#     apt-get install -y  python3.10-dev
+
+
+
+
+    
 RUN apt-get update && apt-get install -y --no-install-recommends \        
         libxcb-randr0-dev libxcb-xtest0-dev libxcb-xinerama0-dev libxcb-shape0-dev libxcb-xkb-dev \
         libxml2-dev \
@@ -58,7 +120,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libssl-dev \ 
         # qt5-default \
         libreadline-dev \
-        sqlite3 
+        sqlite3 \
+        python3-pip
         # python3-tk \
         # xorg \
         # openbox \
@@ -78,7 +141,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 
 
-RUN python3 -m  pip  install torch torchvision torchaudio torch-geometric --extra-index-url https://download.pytorch.org/whl/cpu
+RUN python3 -m  pip  install torch torchvision torchaudio torch-geometric 
 # RUN python3 -m  pip  install torch torchvision torchaudio torch-geometric --extra-index-url https://download.pytorch.org/whl/cpu
 # RUN python3 -m pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu118
 # # RUN python3 -m pip install jaxlib --upgrade
@@ -110,7 +173,7 @@ RUN python3 -m  pip install \
     # equinox \
     einops==0.6.0\
     torchio==0.18.87 \
-    jax-triton \
+    # jax-triton \
     opencv-python==4.7.0.68 \
     dm-pix==0.3.4 \
     visu3d==1.4.0 \
@@ -133,7 +196,10 @@ RUN python3 -m  pip install \
     seaborn \
     orbax-checkpoint \
     monai-weekly \
-    jraph
+    jraph \
+    flax \
+    optax \
+    jaxopt
     # jax-cosmo==0.1.0 \
     # more-itertools \
     # optax
@@ -150,25 +216,25 @@ RUN python3 -m  pip install jax_metrics
 # RUN python3 -m pip install --upgrade "jax[cuda11_local]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
 
-RUN python3 -m pip install -U -qq "git+https://github.com/google/flax.git@main#egg=flax"
-RUN python3 -m pip install git+https://github.com/deepmind/optax.git 
+# RUN python3 -m pip install -U -qq "git+https://github.com/google/flax.git@main#egg=flax"
+# RUN python3 -m pip install git+https://github.com/deepmind/optax.git 
 
 # RUN python3 -m  pip install git+git://github.com/deepmind/jraph.git
 # RUN python3 -m  pip install -q git+https://github.com/cpgoodri/jax_transformations3d.git
 
-RUN git clone https://github.com/pyro-ppl/numpyro.git ${HOME}/externalRepos/numPyro && \
-    cd ${HOME}/externalRepos/numPyro && \
-    pip install -e .[dev] 
+# RUN git clone https://github.com/pyro-ppl/numpyro.git ${HOME}/externalRepos/numPyro && \
+#     cd ${HOME}/externalRepos/numPyro && \
+#     pip install -e .[dev] 
 
 
 
-RUN git clone https://github.com/google-research/big_vision ${HOME}/externalRepos/big_vision && \
-    cd ${HOME}/externalRepos/big_vision  && \
-    python3 -m pip install -r big_vision/requirements.txt 
+# RUN git clone https://github.com/google-research/big_vision ${HOME}/externalRepos/big_vision && \
+#     cd ${HOME}/externalRepos/big_vision  && \
+#     python3 -m pip install -r big_vision/requirements.txt 
 
 
 # RUN python3 -m  pip install git+https://github.com/deepmind/PGMax.git
-RUN python3 -m  pip install git+https://github.com/google/jaxopt
+# RUN python3 -m  pip install git+https://github.com/google/jaxopt
 
 
 RUN python3 -m  pip install numpy --upgrade
@@ -262,9 +328,3 @@ RUN git config --global user.name "Jakub Mitura"
 
 
 RUN python3 -m  pip install pyradiomics mrmr_selection shap ngboost
-#ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-#/usr/local/cuda/lib64
-#/usr/local/cuda/extras/CUPTI
-
-# ENV LD_LIBRARY_PATH=/usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH
-ENV LD_LIBRARY_PATH=/usr/local/cuda-12.0/NsightSystems-cli-2022.5.1/target-linux-x64:$LD_LIBRARY_PATH
