@@ -59,26 +59,6 @@ image = sitk.GetArrayFromImage(imagePrim)
 image = jnp.swapaxes(image, 0,2)
 
 
-
-# aa=jnp.array([[1, 0, 0, 25],
-#   [0, 1, 0, 25],
-#   [0, 0, 1, 0],
-#   [  0, 0,    0, 1]])
-
-# matrix = aa #rotate_3d(angle_x, angle_y, angle_z)[0:3,0:3]
-
-# # Use the offset to place the rotation at the image center.
-# image_center = (jnp.asarray(image.shape+(0,)) - 1.) / 2.
-# offset = image_center - matrix @ image_center
-
-# Nx,Ny,Nz= image.shape
-# fullArr=jnp.arange(Nx)
-# fullArr=jnp.sin(fullArr*0.01)*200
-# repX=einops.repeat(fullArr,'x->x y z 1', y=Ny, z=Nz)
-# repX.shape
-#### in elastic deformation the deformation size should be inversly proportional to the voxel size in this axis
-# so ussually it should be smallest in z dim
-
 def affine_transform(
     image: chex.Array,
     matrix: chex.Array,
@@ -263,30 +243,6 @@ def rotate(
     The rotated image.
   """
   # Calculate inverse transform matrix assuming clockwise rotation.
-  rcx = jnp.cos(angle_x)
-  rsx = jnp.sin(angle_x)
-
-  rcy = jnp.cos(angle_y)
-  rsy = jnp.sin(angle_y) 
-  rcz = jnp.cos(angle_z)
-  rsz = jnp.sin(angle_z)    
-      
-  # matrix_x = jnp.array([[1,    0,   0, 0],
-  #                           [0,  rcx, rsx, 0],
-  #                           [0, -rsx, rcx, 0],
-  #                           [0,    0,   0, 1]])
-
-  # matrix_y = jnp.array([[rcy, 0, -rsy]
-  #                   , [ 0, 1,    0]
-  #                   , [rsy, 0,  rcy]])
-
-  # matrix_z = jnp.array([[rcz, rsz, 0]
-  #                   , [-rsz, rcz, 0]
-  #                   , [ 0,   0, 1]])                    
-
-  # aa=jnp.array([[1, 0, 0, 25],
-  #   [0, 1, 0, 25],
-  #  [0, 0, 1, 0]])
 
   matrix = rotate_3d(angle_x, angle_y, angle_z)[0:3,0:3]
 
