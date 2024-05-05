@@ -69,6 +69,9 @@ class Pilot_model(nn.Module):
         ])(image)
 
         conved=v_collapse_dense(conved)
+        #we will keep it in range between 0 and 400
+        conved=nn.sigmoid(conved)
+        conved=conved*400
 
 
         

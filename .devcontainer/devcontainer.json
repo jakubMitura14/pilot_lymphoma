@@ -39,7 +39,7 @@
         // "ms-python.vscode-pylance"
     ],
 	"mounts": [
-		 "source=/home/jakubmitura/projects/datasets/Task09_Spleen,target=/root/data,type=bind,consistency=cached",
+		//  "source=/home/jakubmitura/projects/datasets/Task09_Spleen,target=/root/data,type=bind,consistency=cached",
 		 "source=/home/jakubmitura/projects/datasets/prepared_registered,target=/root/data,type=bind,consistency=cached"
 
 		 
