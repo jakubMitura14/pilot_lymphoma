@@ -327,4 +327,4 @@ RUN git config --global user.name "Jakub Mitura"
 
 
 
-RUN python3 -m  pip install pyradiomics mrmr_selection shap ngboost
+RUN python3 -m  pip install pyradiomics mrmr_selection shap ngboost itk
