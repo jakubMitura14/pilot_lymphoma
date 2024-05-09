@@ -10,7 +10,7 @@ import os
 from functools import partial
 import multiprocessing as mp
 import faulthandler
-
+import gc
 faulthandler.enable()
 
 def get_extractor():
@@ -125,26 +125,30 @@ def extract_for_case(curr_row,extractor,min_voxels,im_dir):
     1) get study for patient and extract path to ct's and SUV images based on study_0_or_1 an patient id
     2) extract information about Deauville from each study plus study_0_or_1 info
     """
-    csv_res_path="/workspaces/pilot_lymphoma/data/extracted_features_pet_full.csv"
+    csv_res_path="/workspaces/pilot_lymphoma/data/extracted_features_pet_full_curr.csv"
     df_created=False
+    no_pat_id=False
     if(os.path.exists(csv_res_path)==False):
         pd.DataFrame().to_csv(csv_res_path)
         df_created=True
     res_csv=pd.read_csv(csv_res_path)
     if("pat_id" not in list(res_csv.keys())):
-        df_created=True
-
+        no_pat_id=True
     curr_row=curr_row[1]
     #extract necessary information from dataframe
     pat_id= curr_row["pat_id"]
     Deauville= curr_row["deauville_1"]
     study_0_or_1= curr_row["study_0_or_1"]
     
+    print(f"************** pat_id {pat_id} study_0_or_1 {study_0_or_1}")
 
     #check if we already have extracted features for this patient
-    if(not df_created):
+    if((not df_created) and (not no_pat_id)):
         if(len(res_csv.loc[(res_csv["pat_id"]==pat_id) & (res_csv["study_0_or_1"]==study_0_or_1)])>0):
             print(f" pat_id {pat_id} study_0_or_1 {study_0_or_1} already extracted")
+            return []
+        if((pat_id==26) and (study_0_or_1==0)):
+            print(f" pat_id {pat_id} study_0_or_1 {study_0_or_1} killed")
             return []
 
     #get paths to the files from main folder
@@ -168,11 +172,13 @@ def extract_for_case(curr_row,extractor,min_voxels,im_dir):
     #we want to get the list of tuples where each tuples has 3 entries (key_name, inferred lesion number, single lesion boolean mask)
     list_bool_lesions= (f"mask_{pat_id}_{study_0_or_1}",  get_lesions_from_mask(sitk.GetArrayFromImage(img_mask)))
     # print(f"gggg {list(map(lambda el: el.shape ,list_bool_lesions[1]))}")
-    summed= np.sum(np.stack(np.stack(list_bool_lesions[1],axis=0)),axis=0)
-    list_bool_lesions=list(map(lambda inner_el:(list_bool_lesions[0],inner_el[0],inner_el[1]) ,list(enumerate(list_bool_lesions[1])) ))
     # list_bool_lesions=list(itertools.chain(*list_bool_lesions))
     res=[]
-    if(len(list_bool_lesions)>0):
+    if(len(list_bool_lesions[1])>0):
+        summed= np.sum(np.stack(np.stack(list_bool_lesions[1],axis=0)),axis=0)
+        list_bool_lesions=list(map(lambda inner_el:(list_bool_lesions[0],inner_el[0],inner_el[1]) ,list(enumerate(list_bool_lesions[1])) ))
+        gc.collect()
+
 
         # with mp.Pool(processes = mp.cpu_count()) as pool:
         #     res=pool.map(partial(extract_for_lesions,pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
@@ -183,25 +189,26 @@ def extract_for_case(curr_row,extractor,min_voxels,im_dir):
         #### adding features from all lesions at once
         res.append(extract_for_lesions((f"mask_{pat_id}_{study_0_or_1}",1000,summed),pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
                                  ,Deauville=Deauville,im_dir=im_dir,study_0_or_1=study_0_or_1))
-    
-    ############3333
-    # for_df= list(filter(lambda el:len(el)>0,for_df))
-    res= list(filter(lambda el:"original_shape_Maximum2DDiameterSlice_pet" in el.keys(),res))
-    res= list(filter(lambda el:el["original_shape_Maximum2DDiameterSlice_pet"]!="" and el["original_shape_Maximum2DDiameterSlice_pet"]!=" ",res))
+        gc.collect()
 
+        ############3333
+        res= list(filter(lambda el:len(el)>0,res))
+        # res= list(filter(lambda el:"original_shape_Maximum2DDiameterSlice_pet" in el.keys(),res))
+        # res= list(filter(lambda el:el["original_shape_Maximum2DDiameterSlice_pet"]!="" and el["original_shape_Maximum2DDiameterSlice_pet"]!=" ",res))
 
-    df_to_append=pd.DataFrame(res)
-    if(not df_created):
-        for_df=for_df.append(df_to_append)
-    else:
+        
+        df_to_append=pd.DataFrame(res)
         for_df=df_to_append
+        print(f"ddddddf_to_append {len(df_to_append)} res {len(res)}")
+        if(not df_created):
+            for_df=res_csv.append(df_to_append)
 
-    # print(for_df[1])
-    #flattening
-    # for_df=list(itertools.chain(*for_df))
-    # os.makedirs("/workspaces/konwersjaJsonData/explore",exist_ok=True)
+        # print(for_df[1])
+        #flattening
+        # for_df=list(itertools.chain(*for_df))
+        # os.makedirs("/workspaces/konwersjaJsonData/explore",exist_ok=True)
 
-    pd.DataFrame(for_df).to_csv(csv_res_path)
+        pd.DataFrame(for_df).to_csv(csv_res_path)
 
 
 

@@ -39,7 +39,7 @@
         // "ms-python.vscode-pylance"
     ],
 	"mounts": [
-		 "source=/home/uzytkownik/projects_new/slicer_data,target=/root/data,type=bind,consistency=cached"
+		 "source=/home/jm/projects_new/slicer_data,target=/root/data,type=bind,consistency=cached"
 	  ],
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
