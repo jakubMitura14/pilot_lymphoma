@@ -11,14 +11,14 @@ def get_cfg():
     # cfg.learning_rate=0.0000001
     # cfg.learning_rate=0.00000001
     # cfg.learning_rate=0.00000000001
-    cfg.learning_rate=0.00001
+    cfg.learning_rate=0.01
     # cfg.learning_rate=0.0000009
     cfg.convolution_channels=4
 
     cfg.batch_size=4
 
     cfg.batch_size_pmapped=np.max([cfg.batch_size//jax.local_device_count(),1])
-    cfg.img_size = (cfg.batch_size,420,200,200,2)
+    cfg.img_size = (cfg.batch_size,488, 200, 200,2)
    
     #just for numerical stability
     cfg.epsilon=0.0000000000001

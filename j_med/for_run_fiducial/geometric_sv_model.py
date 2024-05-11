@@ -38,8 +38,9 @@ class Conv_trio(nn.Module):
 
 def collapse_dense(conved):
     return nn.Sequential([
-        nn.Dense(100)
-        ,nn.Dense(6)
+        # nn.Dense(128) #Initializer expected to generate shape (128, 128) but got shape (16, 128)
+        nn.Dense(100) 
+        ,nn.Dense(1)
     ])(conved.flatten())
 
 

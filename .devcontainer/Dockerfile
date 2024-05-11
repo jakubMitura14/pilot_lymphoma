@@ -1,4 +1,4 @@
-FROM nvcr.io/nvdlfwea/jax/jax:23.05-py3
+FROM nvcr.io/nvidia/jax:24.04-py3
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -81,8 +81,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python3 -m  pip  install torch torchvision torchaudio torch-geometric --extra-index-url https://download.pytorch.org/whl/cpu
 # RUN python3 -m  pip  install torch torchvision torchaudio torch-geometric --extra-index-url https://download.pytorch.org/whl/cpu
 # RUN python3 -m pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu118
-# # RUN python3 -m pip install jaxlib --upgrade
-# # RUN python3 -m pip install jax --upgrade
+# RUN python3 -m pip install jaxlib --upgrade
+# RUN python3 -m pip install jax --upgrade
 
 RUN python3 -m  pip install \
     # numba==0.56.4+1.g772622d0d\
@@ -133,7 +133,15 @@ RUN python3 -m  pip install \
     seaborn \
     orbax-checkpoint \
     monai-weekly \
-    jraph
+    jraph \
+    jax_metrics \
+    git+https://github.com/deepmind/optax.git  \
+    "git+https://github.com/google/flax.git@main#egg=flax" \
+    git+https://github.com/google/jaxopt \
+    pyradiomics mrmr_selection shap ngboost \
+    "jax[cuda12]"==0.4.28 \
+    tensorflow
+
     # jax-cosmo==0.1.0 \
     # more-itertools \
     # optax
@@ -141,37 +149,27 @@ RUN python3 -m  pip install \
 
 
 
-    # git+https://github.com/deepmind/optax.git
-# RUN python3 -m  pip install optax    
-RUN python3 -m  pip install jax_metrics    
- 
-# RUN python3 -m  pip install git+https://github.com/google/flax.git
 
-# RUN python3 -m pip install --upgrade "jax[cuda11_local]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-
-
-RUN python3 -m pip install -U -qq "git+https://github.com/google/flax.git@main#egg=flax"
-RUN python3 -m pip install git+https://github.com/deepmind/optax.git 
 
 # RUN python3 -m  pip install git+git://github.com/deepmind/jraph.git
 # RUN python3 -m  pip install -q git+https://github.com/cpgoodri/jax_transformations3d.git
 
-RUN git clone https://github.com/pyro-ppl/numpyro.git ${HOME}/externalRepos/numPyro && \
-    cd ${HOME}/externalRepos/numPyro && \
-    pip install -e .[dev] 
+# RUN git clone https://github.com/pyro-ppl/numpyro.git ${HOME}/externalRepos/numPyro && \
+#     cd ${HOME}/externalRepos/numPyro && \
+#     pip install -e .[dev] 
 
 
 
-RUN git clone https://github.com/google-research/big_vision ${HOME}/externalRepos/big_vision && \
-    cd ${HOME}/externalRepos/big_vision  && \
-    python3 -m pip install -r big_vision/requirements.txt 
+# RUN git clone https://github.com/google-research/big_vision ${HOME}/externalRepos/big_vision && \
+#     cd ${HOME}/externalRepos/big_vision  && \
+#     python3 -m pip install -r big_vision/requirements.txt 
 
 
 # RUN python3 -m  pip install git+https://github.com/deepmind/PGMax.git
-RUN python3 -m  pip install git+https://github.com/google/jaxopt
+# RUN python3 -m  pip install git+https://github.com/google/jaxopt
 
 
-RUN python3 -m  pip install numpy --upgrade
+# RUN python3 -m  pip install numpy --upgrade
 # RUN python3 -m  pip install git+https://github.com/deepmind/optax.git
 
 # # RUN git clone https://github.com/deepmind/optax.git ${HOME}/externalRepos/optax && \
@@ -261,10 +259,10 @@ RUN git config --global user.name "Jakub Mitura"
 
 
 
-RUN python3 -m  pip install pyradiomics mrmr_selection shap ngboost
+# RUN python3 -m  pip install pyradiomics mrmr_selection shap ngboost
 #ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 #/usr/local/cuda/lib64
 #/usr/local/cuda/extras/CUPTI
 
 # ENV LD_LIBRARY_PATH=/usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH
-ENV LD_LIBRARY_PATH=/usr/local/cuda-12.0/NsightSystems-cli-2022.5.1/target-linux-x64:$LD_LIBRARY_PATH
+# ENV LD_LIBRARY_PATH=/usr/local/cuda-12.0/NsightSystems-cli-2022.5.1/target-linux-x64:$LD_LIBRARY_PATH

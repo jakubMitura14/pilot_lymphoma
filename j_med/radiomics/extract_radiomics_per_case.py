@@ -23,9 +23,29 @@ def get_extractor():
     extractor.enableFeatureClassByName('firstorder')
     extractor.enableFeatureClassByName('glcm')
     extractor.enableFeatureClassByName('gldm')
-    extractor.enableFeatureClassByName('glrlm')
+    # extractor.enableFeatureClassByName('glrlm')
     extractor.enableFeatureClassByName('glszm')
-    extractor.enableFeatureClassByName('ngtdm')
+    # extractor.enableFeatureClassByName('ngtdm')
+    # features_to_enable = {
+    #     'log-sigma-4-0-mm-3D_glszm': ['LargeAreaHighGrayLevelEmphasis'],
+    #     'wavelet-LHH_glcm': ['ClusterProminence'],
+    #     'log-sigma-2-0-mm-3D_glszm': ['LargeAreaHighGrayLevelEmphasis'],
+    #     'log-sigma-5-0-mm-3D_glszm': ['LargeAreaHighGrayLevelEmphasis'],
+    #     'log-sigma-3-0-mm-3D_glszm': ['LargeAreaHighGrayLevelEmphasis'],
+    #     'wavelet-LHL_firstorder': ['Kurtosis'],
+    #     'log-sigma-3-0-mm-3D_gldm': ['LargeDependenceHighGrayLevelEmphasis']
+    # }
+    # features_to_enable=['log-sigma-4-0-mm-3D_glszm_LargeAreaHighGrayLevelEmphasis'
+    #                     , 'wavelet-LHH_glcm_ClusterProminence'
+    #                     , 'log-sigma-2-0-mm-3D_glszm_LargeAreaHighGrayLevelEmphasis'
+    #                     , 'log-sigma-5-0-mm-3D_glszm_LargeAreaHighGrayLevelEmphasis'
+    #                     , 'log-sigma-3-0-mm-3D_glszm_LargeAreaHighGrayLevelEmphasis'
+    #                     , 'wavelet-LHL_firstorder_Kurtosis'
+    #                     , 'log-sigma-3-0-mm-3D_gldm_LargeDependenceHighGrayLevelEmphasis']
+
+    # extractor.enableFeaturesByName(**features_to_enable)
+
+
     return extractor
 
 
@@ -125,7 +145,7 @@ def extract_for_case(curr_row,extractor,min_voxels,im_dir):
     1) get study for patient and extract path to ct's and SUV images based on study_0_or_1 an patient id
     2) extract information about Deauville from each study plus study_0_or_1 info
     """
-    csv_res_path="/workspaces/pilot_lymphoma/data/extracted_features_pet_full_curr.csv"
+    csv_res_path="/workspaces/pilot_lymphoma/data/extracted_features_pet_trimmed.csv"
     df_created=False
     no_pat_id=False
     if(os.path.exists(csv_res_path)==False):
@@ -144,12 +164,14 @@ def extract_for_case(curr_row,extractor,min_voxels,im_dir):
 
     #check if we already have extracted features for this patient
     if((not df_created) and (not no_pat_id)):
-        if(len(res_csv.loc[(res_csv["pat_id"]==pat_id) & (res_csv["study_0_or_1"]==study_0_or_1)])>0):
+        selected_rows = res_csv[res_csv['pat_id'] == pat_id]
+        selected_rows = selected_rows[selected_rows['study_0_or_1'] == study_0_or_1]
+        if(len(selected_rows)>0):
             print(f" pat_id {pat_id} study_0_or_1 {study_0_or_1} already extracted")
             return []
-        if((pat_id==26) and (study_0_or_1==0)):
-            print(f" pat_id {pat_id} study_0_or_1 {study_0_or_1} killed")
-            return []
+        # if((pat_id==26) and (study_0_or_1==0)):
+        #     print(f" pat_id {pat_id} study_0_or_1 {study_0_or_1} killed")
+        #     return []
 
     #get paths to the files from main folder
     reg_form="lin_transf"
@@ -178,13 +200,19 @@ def extract_for_case(curr_row,extractor,min_voxels,im_dir):
         summed= np.sum(np.stack(np.stack(list_bool_lesions[1],axis=0)),axis=0)
         list_bool_lesions=list(map(lambda inner_el:(list_bool_lesions[0],inner_el[0],inner_el[1]) ,list(enumerate(list_bool_lesions[1])) ))
         gc.collect()
+        print(f"ppppp {pet.shape}")
+        pet=pet[:,20:-20,20:-20]
+        ct=ct[:,20:-20,20:-20]
+        summed=summed[:,20:-20,20:-20]
 
 
         # with mp.Pool(processes = mp.cpu_count()) as pool:
         #     res=pool.map(partial(extract_for_lesions,pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
         #                          ,Deauville=Deauville,im_dir=im_dir,study_0_or_1=study_0_or_1),list_bool_lesions)
-        res=list(map(partial(extract_for_lesions,pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
-                                ,Deauville=Deauville,im_dir=im_dir,study_0_or_1=study_0_or_1),list_bool_lesions))
+
+
+        # res=list(map(partial(extract_for_lesions,pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
+        #                         ,Deauville=Deauville,im_dir=im_dir,study_0_or_1=study_0_or_1),list_bool_lesions))
            
         #### adding features from all lesions at once
         res.append(extract_for_lesions((f"mask_{pat_id}_{study_0_or_1}",1000,summed),pet=pet,ct=ct,extractor=extractor,spacing=spacing,pat_id=pat_id,min_voxels=min_voxels
@@ -253,12 +281,12 @@ for_df=list(map(partial(extract_for_case,extractor=extractor,min_voxels=min_voxe
 # for_df=list(map( lambda case: extract_for_case(non_iso[case],extractor,spacing,case,is_cancer_dicts,isups_dict,fold_val,min_voxels),cases))
 for_df= list(filter(lambda el:len(el)>0,for_df))
 for_df=list(itertools.chain(*for_df))
-for_df= list(filter(lambda el:"original_shape_Maximum2DDiameterSlice_pet" in el.keys(),for_df))
-for_df= list(filter(lambda el:el["original_shape_Maximum2DDiameterSlice_pet"]!="" and el["original_shape_Maximum2DDiameterSlice_pet"]!=" ",for_df))
+# for_df= list(filter(lambda el:"original_shape_Maximum2DDiameterSlice_pet" in el.keys(),for_df))
+# for_df= list(filter(lambda el:el["original_shape_Maximum2DDiameterSlice_pet"]!="" and el["original_shape_Maximum2DDiameterSlice_pet"]!=" ",for_df))
 
 # print(for_df[1])
 #flattening
 # for_df=list(itertools.chain(*for_df))
 # os.makedirs("/workspaces/konwersjaJsonData/explore",exist_ok=True)
-csv_res_path="/workspaces/pilot_lymphoma/data/extracted_features_pet_full.csv"
+csv_res_path="/workspaces/pilot_lymphoma/data/extracted_features_pet_trimmed.csv"
 pd.DataFrame(for_df).to_csv(csv_res_path)

@@ -17,106 +17,105 @@ import SimpleITK as sitk
 import multiprocessing as mp
 from functools import partial
 
-def reg_a_to_b_by_metadata_single_b(fixed_image_path,moving_image_path):
-    # moving_image_path=moving_image_path[0]
-    fixed_image=sitk.ReadImage(fixed_image_path)
-    moving_image=sitk.ReadImage(moving_image_path)
+import os
+import numpy as np
+import numpy as np
 
-    resampled=sitk.Resample(moving_image, fixed_image, sitk.Transform(3, sitk.sitkIdentity), sitk.sitkBSpline, 0)
-    return sitk.GetArrayFromImage(resampled)
-
-
-
-def apply_on_single(pathh,registered_path, total_slices):    
-    innerfiles=os.listdir(join(registered_path,pathh))
-    transformed= list(filter(lambda el: 'trans' in el,innerfiles))[0]
-    one= list(filter(lambda el: 'sudy_1' in el,innerfiles))[0]
-    transformed= join(registered_path,pathh,transformed)
-    one= join(registered_path,pathh,one)
-
-    regg=reg_a_to_b_by_metadata_single_b(one,transformed)
-    one= sitk.GetArrayFromImage(sitk.ReadImage(one))
-
-    total_slices=420
-    diff= regg.shape[0]-total_slices
-    diff_quart= diff/6  
-    diff_end=round(diff_quart*5)
-    diff_beg=regg.shape[0]-(diff-diff_end)
-    regg0=regg.shape[0]
-    regg=regg[diff_end:diff_beg,:,:]
-    one=one[diff_end:diff_beg,:,:]
-    # regg=regg[diff_beg:diff_end,:,:]
-    # one=one[diff_beg:diff_end,:,:]
+import SimpleITK as sitk
+import jax.numpy as jnp
+import itertools
 
 
-    # print(f"regg 0  {regg0} regg {regg.shape[0]} diff_end {diff_end} diff_beg {diff_beg}")
-
-
-    return np.stack([regg,one],axis=-1)
-
-
-
-def add_batches(patient_paths,registered_path, total_slices,labels_df_path,batch_size):
-  
-
-  batch_size_pmapped=np.max([batch_size//jax.local_device_count(),1])
-  df= pd.read_csv(labels_df_path)
-  labels=np.array(list(map(lambda pathh : df.loc[df['Unnamed: 0']==pathh]['deauville_2'].to_numpy()[0],patient_paths)))>3
-  data=[]
-  with mp.Pool(processes = mp.cpu_count()) as pool: 
-    # data=pool.map(lambda pathh: apply_on_single(pathh,registered_path, total_slices)   ,patient_paths)
-    data=pool.map(partial(apply_on_single,registered_path=registered_path, total_slices=total_slices)   ,patient_paths)
-
-  data = jnp.stack(data)
-  labels=jnp.array(labels)
-  dv=jax.local_device_count()
-
-  data= einops.rearrange(data,'(i pm b) x y z c-> i pm b x y z c' ,pm=dv,b=batch_size)
-  labels= einops.rearrange(labels,'(i pm b)-> i pm b' ,pm=dv,b=batch_size)
-
-
-  return data,labels
-
-
-
-# registered_path= '/workspaces/pilot_lymphoma/data/fid_registered/fiducially_registered'
-# labels_df_path='/workspaces/pilot_lymphoma/data/all_deauville_anon - Copy of Form responses 1.csv'
-# total_slices=420
-# batch_size=1
-
-# patient_paths=os.listdir(registered_path)
-# data,labels=add_batches(patient_paths,registered_path, total_slices,labels_df_path,batch_size)
-# print(f"data {data.shape}")
-
-
-# def get_check_point_folder():
-#   now = datetime.now()
-#   checkPoint_folder=f"/workspaces/Jax_cuda_med/data/checkpoints/{now}"
-#   checkPoint_folder=checkPoint_folder.replace(' ','_')
-#   checkPoint_folder=checkPoint_folder.replace(':','_')
-#   checkPoint_folder=checkPoint_folder.replace('.','_')
-#   os.makedirs(checkPoint_folder)
-#   return checkPoint_folder  
+def join_ct_suv(ct: sitk.Image, suv: sitk.Image,ct1: sitk.Image, suv1: sitk.Image) -> sitk.Image:
+    """
+    Resample a CT image to the same size as a SUV image
+    """
    
+    ct_arr=sitk.GetArrayFromImage(ct)
+    suv_arr=sitk.GetArrayFromImage(suv)
 
-# def save_checkpoint(index,epoch,cfg,checkPoint_folder,state,loss):
-#     if(index==0 and epoch%cfg.divisor_checkpoint==0 and cfg.to_save_check_point):
-#         chechpoint_epoch_folder=f"{checkPoint_folder}/{epoch}"
-#         # os.makedirs(chechpoint_epoch_folder)
+    ct_arr_1=sitk.GetArrayFromImage(ct1)
+    suv_arr_1=sitk.GetArrayFromImage(suv1)
+    
+    res=jnp.stack([jnp.array(suv_arr),jnp.array(ct_arr),jnp.array(ct_arr_1),jnp.array(suv_arr_1)],axis=-1)
+    return res
 
-#         orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
-#         ckpt = {'model': state, 'config': cfg,'loss':loss}
-#         save_args = orbax_utils.save_args_from_target(ckpt)
-#         orbax_checkpointer.save(chechpoint_epoch_folder, ckpt, save_args=save_args)
+def load_landmark_data(folder_path:str):
+    """
+    given path to folder with landmarks files and images after general registaration we load the data
+    we want to first load the suv and ct images resample them to the same size and then load the landmarks
+    we need to load separately study 0 and 1 
+    the output should be in form of a dictionary with keys 'study_0','study_1','From`,`To`' where `From` and `To` are the landmarks
+    all the data should be in form of jnp.arrays
+    """
+    ct_0=sitk.ReadImage(folder_path+'/study_0_ct_soft.nii.gz')
+    suv_0=sitk.ReadImage(folder_path+'/study_0_SUVS.nii.gz')
+    # Resample ct_0 to match ct_1
+            
+    ct_1=sitk.ReadImage(folder_path+'/study_1_ct_soft.nii.gz')
+    suv_1=sitk.ReadImage(folder_path+'/study_1_SUVS.nii.gz')    
+    arr_0 = join_ct_suv(ct_0, suv_0,ct_1, suv_1)
 
-# def save_examples_to_hdf5(masks,batch_images_prim,curr_label  ):
-#     f = h5py.File('/workspaces/Jax_cuda_med/data/hdf5_loc/example_mask.hdf5', 'w')
-#     f.create_dataset(f"masks",data= masks)
-#     f.create_dataset(f"image",data= batch_images_prim)
-#     f.create_dataset(f"label",data= curr_label)
-#     f.close()   
+    return {'study':arr_0, 'From':jnp.load(folder_path+'/From.npy'),'To':jnp.load(folder_path+'/To.npy')}
 
 
+def reshape_image(arr, img_size):
+    # Get the current shape of the input array
+    img_size=(img_size[1],img_size[2],img_size[3],img_size[4])
+    current_shape = arr.shape
+    
+    # Check if the current shape is already equal to the desired shape
+    if current_shape == img_size:
+        print("The input array already has the desired shape.")
+        return arr
+    
+    # Check if the current shape is larger than the desired shape in any dimension
+    if any(cs > ds for cs, ds in zip(current_shape, img_size)):
+        # Crop the input array from the end of the dimension where it occurs
+        arr = arr[:img_size[0], :img_size[1], :img_size[2], :img_size[3]]
+        print("The input array has been cropped to the desired shape.")
+    
+    # Check if the current shape is smaller than the desired shape in any dimension
+    if any(cs < ds for cs, ds in zip(current_shape, img_size)):
+        # Pad the input array with zeros at the end of the dimension where it occurs
+
+        arr = np.pad(arr, ((0, np.max(img_size[0] - current_shape[0],0)),
+                                  (0, np.max(img_size[1] - current_shape[1],0)),
+                                  (0, np.max(img_size[2] - current_shape[2],0)),
+                                  (0, 0)), mode='constant')
+        print("The input array has been padded to the desired shape.")
+    
+    # If none of the above conditions are met, return the input array as is
+    return arr
 
 
+def stack_with_pad(arr_0,arr_1):
+    if arr_0.shape[0] > arr_1.shape[0]:
+        pad_length = arr_0.shape[0] - arr_1.shape[0]
+        padding = jnp.full((pad_length, arr_1.shape[1]), -1)
+        arr_1 = jnp.concatenate((arr_1, padding), axis=0)
+    elif arr_1.shape[0] > arr_0.shape[0]:
+        pad_length = arr_1.shape[0] - arr_0.shape[0]
+        padding = jnp.full((pad_length, arr_0.shape[1]), -1)
+        arr_0 = jnp.concatenate((arr_0, padding), axis=0)
+    
+    return jnp.stack([arr_0, arr_1])
 
+    
+def get_batched(folder_tuple,img_size):
+    folder_0=load_landmark_data(f"{folder_tuple[0]}/general_transform")
+    folder_1=load_landmark_data(f"{folder_tuple[1]}/general_transform")
+    arr=jnp.stack([reshape_image(folder_0['study'],img_size),reshape_image(folder_1['study'],img_size)])
+    From=stack_with_pad(folder_0['From'],folder_1['From'])
+    To=stack_with_pad(folder_0['To'],folder_1['To'])
+    return {'study':arr, 'From':From,'To':To}
+
+def get_dataset(folder_path,img_size):
+    folder_names = [os.path.join(folder_path, name) for name in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, name))]
+    folder_names= list(filter(lambda el: "pat" in el, folder_names))
+    folder_tuples = list(itertools.zip_longest(*[iter(folder_names)] * 2))
+    folder_tuples=folder_tuples[0:19]
+    return [get_batched(folder_tuple,img_size) for folder_tuple in folder_tuples]
+
+
+# import jax; print(jax.devices())

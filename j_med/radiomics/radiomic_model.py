@@ -87,8 +87,8 @@ def get_tree_hyper_params(trial):
 
 def clasify( main_df_val,main_df_train,y_cols,chosen_y_col,num_classes,K,to_display,Base,n_estimators,learning_rate,minibatch_frac):
 
-    main_df_val[chosen_y_col]=main_df_val[chosen_y_col].to_numpy().astype(int)
-    main_df_train[chosen_y_col]=main_df_train[chosen_y_col].to_numpy().astype(int)
+    main_df_val[chosen_y_col]=main_df_val[chosen_y_col].to_numpy().astype(int)-1
+    main_df_train[chosen_y_col]=main_df_train[chosen_y_col].to_numpy().astype(int)-1
     
     # main_df_val = main_df_val[main_df_val[chosen_y_col] > -1]
     # main_df_train = main_df_train[main_df_train[chosen_y_col] > -1]
@@ -99,25 +99,25 @@ def clasify( main_df_val,main_df_train,y_cols,chosen_y_col,num_classes,K,to_disp
     X_test = main_df_val.drop(columns=y_cols)
 
     X_train = X_train.iloc[:, 1:]
-    X_test = X_train.iloc[:, 1:]
+    X_test = main_df_val.iloc[:, 1:]
 
     Y_train = main_df_train[chosen_y_col]
     Y_test = main_df_val[chosen_y_col]
 
-    print(f"X_train {X_train} Y_train {Y_train}")
 
     # select top K features using mRMR
-    selected_features = mrmr_classif(X=X_train, y=Y_train, K=7,n_jobs=1)
+    # selected_features = mrmr_classif(X=X_train, y=Y_train, K=7,n_jobs=1)
     # selected_features = mrmr_classif(X=None, y=Y_train, K=K)
-
+    selected_features=['log-sigma-4-0-mm-3D_glszm_LargeAreaHighGrayLevelEmphasis_pet', 'wavelet-LHH_glcm_ClusterProminence_ct', 'log-sigma-2-0-mm-3D_glszm_LargeAreaHighGrayLevelEmphasis_pet', 'log-sigma-5-0-mm-3D_glszm_LargeAreaHighGrayLevelEmphasis_pet', 'log-sigma-3-0-mm-3D_glszm_LargeAreaHighGrayLevelEmphasis_pet', 'wavelet-LHL_firstorder_Kurtosis_pet', 'log-sigma-3-0-mm-3D_gldm_LargeDependenceHighGrayLevelEmphasis_pet']
     print(f"selected_features {selected_features}")
     # selected_features =['original_glcm_JointEntropy_adc', 'wavelet-HLH_firstorder_RobustMeanAbsoluteDeviation_adc', 'wavelet-LLL_firstorder_Kurtosis_adc', 'original_shape_Sphericity_adc', 'wavelet-LHL_firstorder_RootMeanSquared_hbv', 'original_glcm_SumEntropy_adc', 'log-sigma-3-0-mm-3D_glszm_SmallAreaEmphasis_adc']
     
     X_train=main_df_train[selected_features]
     X_test=main_df_val[selected_features]
 
-
-
+    print(f"xxxx X_train \n {X_train.columns} \n Y_train \n {len(Y_train)} \n")
+    qq=np.unique(Y_train.to_numpy().astype(int))
+    print(f"qqqqqqq {qq}")
     # # print(f"yyyyyyyyy {Y_train.to_numpy().astype(int)}")
     ngb_cat = NGBClassifier(Dist=k_categorical(num_classes), verbose=True
                             ,Base=Base
@@ -125,7 +125,7 @@ def clasify( main_df_val,main_df_train,y_cols,chosen_y_col,num_classes,K,to_disp
                             ,learning_rate=learning_rate
                             ,minibatch_frac=minibatch_frac) 
     # try:
-    _ = ngb_cat.fit(X_train, Y_train.to_numpy().astype(int))
+    _ = ngb_cat.fit(X_train, Y_train)#.to_numpy().astype(int)
     # except:
     #     print(f"error")
     #     return 0.0
@@ -155,12 +155,12 @@ def clasify( main_df_val,main_df_train,y_cols,chosen_y_col,num_classes,K,to_disp
             display_probs(curr_class, inferred_probs, Y_test)
 
     # print(f"probs {inferred_probs}")
-    print(f"""Accuracy: {acc}""")
+    print(f"""Accuracy: {acc} remember if it prints Deauville 4 it is 5 becouse of 0 indexing etc.""")
     if(num_classes==2):
         a=(inferred_probs[:,1]>0.7).astype(bool)
         b=Y_test.to_numpy()
         high_confidence=np.sum(np.logical_and(a,b).flatten())/np.sum(b.flatten())
-        print(f"high_confidence {high_confidence}")
+        print(f"high_confidence {high_confidence} remember if it prints Deauville 4 it is 5 becouse of 0 indexing etc.")
 
 
 
@@ -177,11 +177,14 @@ def clasify( main_df_val,main_df_train,y_cols,chosen_y_col,num_classes,K,to_disp
 def classify_full():
     
     # K=20
-    K=7
+    K=8
     # X, y = make_classification(n_samples = 1000, n_features = 50, n_informative = 10, n_redundant = 40)
     res_path=""
-    main_df=pd.read_csv("/workspaces/pilot_lymphoma/data/extracted_features_pet2.csv")
+    main_df=pd.read_csv("/workspaces/pilot_lymphoma/data/extracted_features_pet_full_curr.csv")
 
+    #removing some unnamed columns
+    main_df = main_df.loc[:, ~main_df.columns.str.contains('Unnamed', case=False)]
+    main_df = main_df[main_df['lesion_num'] == 1000]
     # Get first 20 percent of rows
     main_df_val = main_df.head(int(len(main_df) * 0.2))
     main_df_train = main_df.tail(int(len(main_df) * 0.8))
@@ -194,7 +197,7 @@ def classify_full():
     # chosen_y_col="isup_simple"
     chosen_y_col="Deauville"
     # num_classes=2
-    num_classes=6
+    num_classes=5
 
     n_estimators=866#trial.suggest_int("n_estimators", 100,2000)   
     learning_rate=0.02639867572400997#trial.suggest_float("learning_rate", 0.00001,0.1)   
@@ -203,7 +206,8 @@ def classify_full():
    
     # clasify( main_df_val,main_df_train,y_cols,clinical_cols,chosen_y_col,num_classes,K)
     # clasify( main_df_val,main_df_train,y_cols,clinical_cols,chosen_y_col,num_classes,K)
-    Base=get_tree_hyper_params([])    
+    Base=get_tree_hyper_params([])
+
     res=clasify( main_df_val,main_df_train,y_cols,chosen_y_col,num_classes,K,False,Base,n_estimators,learning_rate,minibatch_frac)
     return res
 
