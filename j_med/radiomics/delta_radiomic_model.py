@@ -59,7 +59,7 @@ def get_delta_radiomics(full_data_table_row, radiomics_full_data):
     res = subtract_dicts(rows.iloc[0].to_dict(),rows.iloc[1].to_dict(),row_sum )
     # print(res)
     # Step 5
-    outcome_dict = {'CR':0, 'PD':1, 'PR':2, 'SD':2}
+    outcome_dict = {'CR':0, 'PD':1, 'PR':0, 'SD':0}
     res['outcome'] = outcome_dict[full_data_table_row['outcome']]
 
     # Step 6
@@ -75,7 +75,7 @@ def get_delta_radiomics(full_data_table_row, radiomics_full_data):
 def display_probs(curr_class, inferred_probs, Y_test,to_be_sorted=True):
 
     probd_curr=inferred_probs[:,curr_class]
-    class_curr=(Y_test==curr_class).to_numpy().astype(int)
+    class_curr=(Y_test==curr_class)
     if(to_be_sorted):
         # Concatenate probd_curr and class_curr
         combined = np.column_stack((probd_curr, class_curr))
@@ -121,8 +121,8 @@ def get_tree_hyper_params(trial):
     splitter="random"#trial.suggest_categorical("splitter", ["best","random"])
     max_features=None#trial.suggest_categorical("max_features", ["sqrt","log2",None])
     # max_leaf_nodesint=trial.suggest_categorical("max_leaf_nodesint", [])
-    max_depth=5#trial.suggest_int("max_depth", 1,10)
-    min_samples_leaf=3#trial.suggest_int("min_samples_leaf", 1,3)
+    max_depth=2#trial.suggest_int("max_depth", 1,10)
+    min_samples_leaf=1#trial.suggest_int("min_samples_leaf", 1,3)
     min_impurity_decrease= 0.2307277162959608#trial.suggest_float("min_impurity_decrease", 0.0,0.3)
 
     return sklearn.tree.DecisionTreeRegressor(criterion=criterion,splitter=splitter,max_depth=max_depth,max_features=max_features,min_samples_leaf=min_samples_leaf
@@ -170,13 +170,34 @@ def clasify( main_df_val,main_df_train,y_cols,chosen_y_col,num_classes,K,to_disp
                             ,n_estimators=n_estimators
                             ,learning_rate=learning_rate
                             ,minibatch_frac=minibatch_frac) 
-    try:
-        _ = ngb_cat.fit(X_train, Y_train.to_numpy().astype(int))
-    except:
+    def classsssa():
         try:
             _ = ngb_cat.fit(X_train, Y_train.to_numpy().astype(int))
         except:
-            _ = ngb_cat.fit(X_train, Y_train.to_numpy().astype(int))    
+            try:
+                _ = ngb_cat.fit(X_train, Y_train.to_numpy().astype(int))
+            except:
+                try:
+                    _ = ngb_cat.fit(X_train, Y_train.to_numpy().astype(int))    
+                except:
+                    _ = ngb_cat.fit(X_train, Y_train.to_numpy().astype(int)) 
+    def classsssb():                  
+
+        try:
+            classsssa()
+        except:
+            classsssa() 
+    def classsss():                  
+
+        try:
+            classsssb()
+        except:
+            classsssb() 
+            
+    try:
+        classsss()
+    except:
+        classsss()    
     #     print(f"error")
     #     return 0.0
     
@@ -206,11 +227,11 @@ def clasify( main_df_val,main_df_train,y_cols,chosen_y_col,num_classes,K,to_disp
 
     # print(f"probs {inferred_probs}")
     print(f"""AAA Accuracy: {acc}""")
-    if(num_classes==2):
-        a=(inferred_probs[:,1]>0.7).astype(bool)
-        b=Y_test.to_numpy()
-        high_confidence=np.sum(np.logical_and(a,b).flatten())/np.sum(b.flatten())
-        print(f"high_confidence {high_confidence}")
+    # if(num_classes==2):
+    #     a=(inferred_probs[:,1]>0.7).astype(bool)
+    #     b=Y_test.to_numpy()
+    #     high_confidence=np.sum(np.logical_and(a,b).flatten())/np.sum(b.flatten())
+    #     print(f"high_confidence {high_confidence}")
 
 
 
@@ -264,10 +285,10 @@ def classify_full():
     # chosen_y_col="isup_simple"
     chosen_y_col="outcome"
     # num_classes=2
-    num_classes=3
+    num_classes=2
 
-    n_estimators=866#trial.suggest_int("n_estimators", 100,2000)   
-    learning_rate=0.02639867572400997#trial.suggest_float("learning_rate", 0.00001,0.1)   
+    n_estimators=20#trial.suggest_int("n_estimators", 100,2000)   
+    learning_rate=0.006639867572400997#trial.suggest_float("learning_rate", 0.00001,0.1)   
     minibatch_frac = 0.7561751607203051#trial.suggest_float("minibatch_frac", 0.7,1.0) 
 
    
@@ -300,38 +321,17 @@ def classify_full():
         # print(res[0])
         
     print(inferred_probs)
-    inferred_probs = [item for sublist in inferred_probs for item in sublist]
-    Y_test = [item for sublist in Y_test for item in sublist]
+    inferred_probs = np.concatenate(inferred_probs,axis=0)
+    Y_test = np.concatenate(Y_test,axis=0)
+    print(f"mmmmmmmmean acc {np.mean(acc)}")
+
+    print(f"yyyyyyyyy inferred_probs {inferred_probs.shape} Y_test {Y_test.shape}")
     for curr_class in range(num_classes):
         display_probs(curr_class, inferred_probs, Y_test)
     
-    print(f"mmmmmmmmean acc {np.mean(acc)}")
     return np.mean(acc)
 
 
     # in case of clasyfing isup we need to take a maximum of the isup values for each lesion
 
 classify_full()
-
-
-############## accuracy 0.6666666666666666
-
-# database_name="nat"
-# experiment_name="nat_199"
-# # storage = optuna.storages.RDBStorage(
-# #     url=f"mysql://root@34.90.134.17/{database_name}",
-# #     # engine_kwargs={"pool_size": 20, "connect_args": {"timeout": 10}},
-# # )
-
-# study = optuna.create_study(
-#         study_name=experiment_name
-#         # ,sampler=optuna.samplers.CmaEsSampler()    
-#         ,sampler=optuna.samplers.NSGAIISampler()    
-#         # ,pruner=optuna.pruners.HyperbandPruner()
-#         # ,storage=f"mysql://root:jm@34.90.134.17:3306/{experiment_name}"
-#         # ,storage=f"mysql://root@34.90.134.17/{database_name}"
-#         # ,load_if_exists=True
-#         ,direction="maximize"
-#         )
-
-# study.optimize(classify_full, n_trials=90000,gc_after_trial=True)
