@@ -145,7 +145,7 @@ def extract_for_case(curr_row,extractor,min_voxels,im_dir):
     1) get study for patient and extract path to ct's and SUV images based on study_0_or_1 an patient id
     2) extract information about Deauville from each study plus study_0_or_1 info
     """
-    csv_res_path="/workspaces/pilot_lymphoma/data/extracted_features_pet_trimmed.csv"
+    csv_res_path="/workspaces/pilot_lymphoma/data/extracted_features_pet_trimmedB.csv"
     df_created=False
     no_pat_id=False
     if(os.path.exists(csv_res_path)==False):
@@ -163,12 +163,12 @@ def extract_for_case(curr_row,extractor,min_voxels,im_dir):
     print(f"************** pat_id {pat_id} study_0_or_1 {study_0_or_1}")
 
     #check if we already have extracted features for this patient
-    if((not df_created) and (not no_pat_id)):
-        selected_rows = res_csv[res_csv['pat_id'] == pat_id]
-        selected_rows = selected_rows[selected_rows['study_0_or_1'] == study_0_or_1]
-        if(len(selected_rows)>0):
-            print(f" pat_id {pat_id} study_0_or_1 {study_0_or_1} already extracted")
-            return []
+    # if((not df_created) and (not no_pat_id)):
+    #     selected_rows = res_csv[res_csv['pat_id'] == pat_id]
+    #     selected_rows = selected_rows[selected_rows['study_0_or_1'] == study_0_or_1]
+    #     if(len(selected_rows)>0):
+    #         print(f" pat_id {pat_id} study_0_or_1 {study_0_or_1} already extracted")
+    #         return []
         # if((pat_id==26) and (study_0_or_1==0)):
         #     print(f" pat_id {pat_id} study_0_or_1 {study_0_or_1} killed")
         #     return []
@@ -180,6 +180,7 @@ def extract_for_case(curr_row,extractor,min_voxels,im_dir):
     path_CT= f"{path_curr_folder}/study_{study_0_or_1}_ct_soft.nii.gz"
     path_mask= f"{path_curr_folder}/study_{study_0_or_1}_tmtvNet_SEG.nii.gz"
     if(os.path.exists(path_SUV)==False or os.path.exists(path_CT)==False or os.path.exists(path_mask)==False):
+        print(f"path_SUV {os.path.exists(path_SUV)}  path_CT {os.path.exists(path_CT)} path_mask {os.path.exists(path_mask)}")
         return []
     #load the images
     img_SUV=sitk.ReadImage(path_SUV)
@@ -282,11 +283,6 @@ for_df=list(map(partial(extract_for_case,extractor=extractor,min_voxels=min_voxe
 for_df= list(filter(lambda el:len(el)>0,for_df))
 for_df=list(itertools.chain(*for_df))
 # for_df= list(filter(lambda el:"original_shape_Maximum2DDiameterSlice_pet" in el.keys(),for_df))
-# for_df= list(filter(lambda el:el["original_shape_Maximum2DDiameterSlice_pet"]!="" and el["original_shape_Maximum2DDiameterSlice_pet"]!=" ",for_df))
-
-# print(for_df[1])
-#flattening
-# for_df=list(itertools.chain(*for_df))
 # os.makedirs("/workspaces/konwersjaJsonData/explore",exist_ok=True)
-csv_res_path="/workspaces/pilot_lymphoma/data/extracted_features_pet_trimmed.csv"
+csv_res_path="/workspaces/pilot_lymphoma/data/extracted_features_pet_trimmedC.csv"
 pd.DataFrame(for_df).to_csv(csv_res_path)
