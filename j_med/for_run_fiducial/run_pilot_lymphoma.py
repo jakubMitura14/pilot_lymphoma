@@ -54,6 +54,9 @@ from jax import config
 from ..testUtils.tensorboard_utils import *
 # import augmentations.simpleTransforms
 # from augmentations.simpleTransforms import main_augment
+import numpy as np
+from monai.transforms import Affined, Compose
+from monai.utils import ensure_tuple_rep
 
 # from torch.utils.tensorboard import SummaryWriter
 # import torchvision.transforms.functional as F
@@ -62,6 +65,19 @@ from ..testUtils.tensorboard_utils import *
 from .geometric_sv_model import Pilot_model
 from .xla_utils import *
 from flax.training import checkpoints
+
+from sklearn.model_selection import KFold
+import numpy as np
+from monai.transforms import (
+    Compose,
+    RandShiftIntensityd,
+    RandScaleIntensityd,
+    RandAdjustContrastd,
+    RandGaussianSmoothd,
+    RandGaussianSharpend,
+    RandRicianNoised,
+    Rand3DElasticd
+)
 
 
 
@@ -79,6 +95,7 @@ from .data_utils import *
 import os
 import sys
 import pathlib
+from jax import random
 
 config.update("jax_debug_nans", True)
 # Hide any GPUs from TensorFlow. Otherwise TF might reserve memory and make
@@ -95,12 +112,14 @@ def rotate_and_translate(points: jnp.ndarray
                          translation_vector: jnp.ndarray) -> jnp.ndarray:
     # rotation_matrix = Rotation.from_rotvec(rotation_vector).as_matrix()
 
+    # rotation_matrix =jnp.linalg.inv(Rotation.from_euler('xyz', [0.0,0.0,0.0], degrees=True).as_matrix())
+    # return ((points - center_point) @ rotation_matrix.T + center_point) +translation_vector
     rotation_matrix =jnp.linalg.inv(Rotation.from_euler('xyz', rotation_vector, degrees=True).as_matrix())
-    return (points - center_point) @ rotation_matrix.T + center_point + translation_vector
+    return ((points - center_point) @ rotation_matrix.T + center_point) + translation_vector
 
 
 
-def get_fiducial_loss(weights,from_landmarsk,to_landmarks,image_shape):
+def get_fiducial_loss(weights,from_landmarsk,to_landmarks,image_shape,is_pretraining=False,weights_pretraining=None):
     """
     first entries in in weights are :
         0-3 first rotation vector   
@@ -109,6 +128,9 @@ def get_fiducial_loss(weights,from_landmarsk,to_landmarks,image_shape):
     we apply this transformation to the fiducial points of moving image and 
     calculate the square distance between transformed fiducial points and fiducial points on fixed image           
     """
+    #in case of pretraining we know what we need to get
+    if(is_pretraining):
+        return jnp.sum(jnp.square(weights-weights_pretraining).flatten())
     center_point=(jnp.asarray(image_shape) - 1.) / 2
     res=rotate_and_translate(to_landmarks, center_point, weights[0:3],weights[3:6])
     #calculate the square distance between transformed fiducial points and fiducial points on fixed image 
@@ -139,29 +161,25 @@ def initt(rng_2,cfg:ml_collections.config_dict.FrozenConfigDict,model):
 
 
   tx = optax.chain(
-        optax.clip_by_global_norm(5.0),  # Clip gradients at norm 
+        optax.clip_by_global_norm(3.0),  # Clip gradients at norm 
         # optax.lion(learning_rate=joined_scheduler)
         # optax.lion(learning_rate=cfg.learning_rate)
         #optax.lion(learning_rate=decay_scheduler)
         # optax.fromage(learning_rate=0.003)
-        optax.nadamw(learning_rate=0.003)
+        optax.nadamw(learning_rate=0.0001)
         
         )
   return train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx)
 
 
 
-
-@partial(jax.pmap, axis_name="batch",static_broadcasted_argnums=(4,5))
-def update_fn(state, image,from_landmarsk,to_landmarks, cfg,model):
+@partial(jax.pmap, axis_name="batch",static_broadcasted_argnums=(5,6,7))
+def update_fn(state, image,from_landmarsk,to_landmarks,weights_pretraining, cfg,model,is_pretraining):
 
   """Train for a single step."""
   def loss_fn(params,image,from_landmarsk,to_landmarks):
     conved=model.apply({'params': params}, image, rngs={'to_shuffle': random.PRNGKey(2)})#, rngs={'texture': random.PRNGKey(2)}
-    # print(f"ccccccccccccc {conved.shape} from_landmarsk {from_landmarsk.shape} to_landmarks {to_landmarks.shape}")
     loss=get_fiducial_loss(conved.flatten(),from_landmarsk,to_landmarks,(cfg.img_size[2],cfg.img_size[3],cfg.img_size[4]))
-    # loss=optax.sigmoid_binary_cross_entropy( conved.flatten() ,booll_label.flatten())
-    # print(f"booll_label {booll_label.shape} conved {conved.shape}")
     return jnp.mean(loss)
 
   grad_fn = jax.value_and_grad(loss_fn)
@@ -185,7 +203,8 @@ def simple_apply(state, image,from_landmarsk,to_landmarks, cfg,model):
   #we ignore points indicated as smaller than 0 (padding)
   res=(from_landmarsk-res)
   res=res*(from_landmarsk>0)
-  res=jnp.sqrt(jnp.sum(res**2,axis=-1))
+  # we need to take also into account the number of fiducial points so we will have target registration errorbar
+  res=jnp.sqrt(jnp.sum(res**2,axis=-1)/jnp.sum((from_landmarsk>0)[:,0]))
 
   return jnp.sum(res.flatten())
 
@@ -195,10 +214,13 @@ def train_epoch(batch_images,from_landmarsk,to_landmarks,epoch,index
                 ,model,cfg
                 ,rng_loop
                 ,state
+                ,weights_pretraining
+                ,is_pretraining=False
                 ):    
   epoch_loss=[]
 
-  state,loss=update_fn(state, batch_images, from_landmarsk,to_landmarks,cfg,model)
+
+  state,loss=update_fn(state, batch_images, from_landmarsk,to_landmarks,weights_pretraining,cfg,model,is_pretraining)
   epoch_loss.append(jnp.mean(jax_utils.unreplicate(loss).flatten())) 
   metr=simple_apply(state, batch_images, from_landmarsk,to_landmarks,cfg,model)
 
@@ -209,7 +231,42 @@ def train_epoch(batch_images,from_landmarsk,to_landmarks,epoch,index
   return state,loss,metr
 
 
+def random_rotate_translate(image: np.ndarray, max_rotate: float = 360.0, max_translate: float = 300.0):
+    # Convert degrees to radians for rotation
+    max_rotate = np.radians(max_rotate)
 
+    # Randomly generate rotation and translation parameters
+    rotate_params = np.random.uniform(-max_rotate, max_rotate, size=3)
+    translate_params = np.random.uniform(-max_translate, max_translate, size=3)
+    # Create the affine transform
+    transform = Compose([
+        Affined(
+            keys="img",
+            rotate_params=ensure_tuple_rep(rotate_params, 3),
+            translate_params=ensure_tuple_rep(translate_params, 3),
+            padding_mode="border",
+        ),
+        RandShiftIntensityd(keys="img",offsets=1.0,prob=0.6),
+        RandScaleIntensityd(keys="img",factors=1.0,prob=0.6),
+        Rand3DElasticd(keys="img",sigma_range=(5, 7), magnitude_range=(50, 150),prob=0.6),
+        # RandAdjustContrastd(keys="img"),
+        # RandGaussianSmoothd(keys="img"),
+        # RandGaussianSharpend(keys="img"),
+        RandRicianNoised(keys="img",prob=0.6),
+        
+    ])
+
+    # Apply the transform
+    transformed_image = transform({"img": image})["img"]
+
+    # Convert the image to a numpy array if it isn't already
+    if not isinstance(transformed_image, np.ndarray):
+        transformed_image = transformed_image.cpu().numpy()
+
+    # Create the transformation matrix
+    transform_matrix = np.concatenate([rotate_params, translate_params])
+
+    return transformed_image, transform_matrix
 
 
 def main_train(cfg):
@@ -217,47 +274,102 @@ def main_train(cfg):
   prng = jax.random.PRNGKey(42)
   model = Pilot_model(cfg)
   rng_2=jax.random.split(prng,num=jax.local_device_count() )
-  batch_size=2
-  img_size = (batch_size,488, 200, 200,2)
+  # batch_size=2
+  img_size = cfg.img_size 
   folder_path='/root/data/prepared_registered'
   checkpoints_fold="/workspaces/pilot_lymphoma/data/fiducial_model_checkPoints"
   dataset=get_dataset(folder_path,img_size)
-  state= initt(rng_2,cfg,model)  
-  # metric = jm.metrics.Accuracy()
+  dataset_len=len(dataset)
+  dataset_indicies=np.arange(0,dataset_len)
+  
 
- 
+  # Create a KFold object
+  kf = KFold(n_splits=5)
 
-
-
-  for epoch in range(1, cfg.total_steps):
-      prng, rng_loop = jax.random.split(prng, 2)
-      corr_total=0
-      incorr_total=0
-
-      corr_total_test=0
-      incorr_total_test=0
-
-      for index in range(len(dataset)) :
-        curr_data=dataset[index]
-        # print(f"epoch {epoch} index {index}")
-        state,loss,metr=train_epoch(curr_data["study"],curr_data["From"],curr_data["To"],epoch,index
-                                         ,model,cfg
-                                         ,rng_loop,
-                                         state)
-      
-      checkpoints.save_checkpoint(f"{checkpoints_fold}/{jnp.mean(metr)}__{epoch}", jax_utils.unreplicate(state), step=step)
+  # Use the KFold object to generate the training and validation sets
+  fold_index=0
+  for train_index, val_index in kf.split(dataset_indicies):
+    fold_index=fold_index+1
+    train_set = dataset_indicies[train_index]
+    val_set = dataset_indicies[val_index]
+    print(f"train_index {fold_index} train_set {train_set} val_set {val_set}")
 
 
-      print(f"loss {jnp.mean(loss)} ")
-      print(f"metr {jnp.mean(metr)} ")
-      # acc = metric.compute()   
-      with file_writer.as_default():
-          # print(f"per_corr {per_corr} corr_total {corr_total} incorr_total {incorr_total}")
-          tf.summary.scalar(f"loss", jnp.mean(loss) ,       step=epoch)
-          tf.summary.scalar(f"metr", jnp.mean(metr) ,       step=epoch)
+
+  
+  
+    state= initt(rng_2,cfg,model)  
+    # metric = jm.metrics.Accuracy()
+
+  
 
 
-      # Reset the metric
+    dataset_curr=[dataset[i] for i in train_set]
+    dataset_curr_val=[dataset[i] for i in val_set]
+    for epoch in range(1, cfg.total_steps):
+        is_pretraining=False
+        if(epoch<300):
+          is_pretraining=True
+        prng, rng_loop = jax.random.split(prng, 2)
+        metres=[]
+        metres_val=[]
+        losses=[]
+        for index in range(len(dataset_curr)) :
+          curr_data=dataset_curr[index]
+          # print(f"epoch {epoch} index {index}")
+
+          # Define the augmentation transform
+          # augmentation = tio.Compose([
+          #   # tio.RandomAffine(scales=(0.9, 1.1), degrees=10, translation=10),
+          #   tio.RandomElasticDeformation(num_control_points=7, max_displacement=7),
+          #   tio.RandomNoise(std=(0, 0.1)),
+          # ])
+          # Apply the augmentation to the current study
+          imm_now=curr_data["study"]
+          imm_now_shape=imm_now.shape
+          if(is_pretraining):
+            random_number = np.random.randint(2)*2
+            c_n=random_number,(random_number)
+            cc=np.array(curr_data["study"])
+            cc=einops.rearrange(cc,'b h w d c -> b c h d w')
+            
+            augmented_study = [random_rotate_translate(cc[0,c_n[0]:c_n[1],:,:,:]),random_rotate_translate(cc[1,c_n[0]:c_n[1],:,:,:])]
+            augmented_study_im=jnp.stack([np.array(augmented_study[0][0]),np.array(augmented_study[1][0])])
+            augmented_study_rot=jnp.stack([np.array(augmented_study[0][1]),np.array(augmented_study[1][1])])
+
+            imm_now=einops.rearrange(augmented_study_im,'b c h d w -> b h w d c')
+            imm_now=jnp.concatenate([imm_now[:,:,:,:,c_n[0]:c_n[1]],curr_data["study"]],axis=-1)
+            
+            # # Update the current study with the augmented study
+            # curr_data["study"] = jnp.stack(augmented_study)
+          state,loss,metr=train_epoch(imm_now,curr_data["From"],curr_data["To"],epoch,index
+          # state,loss,metr=train_epoch(curr_data["study"],curr_data["From"],curr_data["To"],epoch,index
+                                          ,model,cfg
+                                          ,rng_loop,
+                                          state,augmented_study_rot,is_pretraining)
+          
+          
+          metres.append(metr)
+          
+          losses.append(loss)
+        # checkpoints.save_checkpoint(f"{checkpoints_fold}/{jnp.mean(metr)}__{epoch}", jax_utils.unreplicate(state), step=step)
+        for index in range(len(dataset_curr_val)) :
+          curr_data_val=dataset_curr_val[index]
+          metr_val=simple_apply(state, curr_data_val["study"],curr_data_val["From"],curr_data_val["To"], cfg,model)
+          metres_val.append(metr_val)
+        print(f"******* epoch {epoch} ")
+        print(f"loss {np.mean(np.mean(losses))} ")
+        print(f"metr {np.mean(np.mean(metres))} ")
+        print(f"metr_val {np.mean(np.mean(metres_val))} ")
+        # acc = metric.compute()   
+        with file_writer.as_default():
+            # print(f"per_corr {per_corr} corr_total {corr_total} incorr_total {incorr_total}")
+            tf.summary.scalar(f"f{fold_index}_loss", np.mean(np.mean(losses)) ,       step=epoch)
+            tf.summary.scalar(f"f{fold_index}_metr", np.mean(np.mean(metres)) ,       step=epoch)
+            tf.summary.scalar(f"f{fold_index}_metr_val", np.mean(np.mean(metres_val)) ,       step=epoch)
+
+
+        # Reset the metric
 
 
 
@@ -267,3 +379,7 @@ main_train(cfg)
 # tensorboard --logdir=/workspaces/pilot_lymphoma/data/tensor_board
 
 # python3 -m j_med.for_run_fiducial.run_pilot_lymphoma
+
+#results folds - 1) 570,361,175,214,152 -mean 294.4
+
+#in case pure general transform -[132.93,158.90,62.06,580.9,346.61] mean 256.28

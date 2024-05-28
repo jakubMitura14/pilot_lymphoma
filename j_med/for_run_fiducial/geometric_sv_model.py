@@ -74,6 +74,6 @@ class Pilot_model(nn.Module):
 
         
 
-        return conved
+        return conved*400
 
 

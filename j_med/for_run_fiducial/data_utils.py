@@ -56,6 +56,7 @@ def load_landmark_data(folder_path:str):
     suv_1=sitk.ReadImage(folder_path+'/study_1_SUVS.nii.gz')    
     arr_0 = join_ct_suv(ct_0, suv_0,ct_1, suv_1)
 
+
     return {'study':arr_0, 'From':jnp.load(folder_path+'/From.npy'),'To':jnp.load(folder_path+'/To.npy')}
 
 
@@ -63,7 +64,7 @@ def reshape_image(arr, img_size):
     # Get the current shape of the input array
     img_size=(img_size[1],img_size[2],img_size[3],img_size[4])
     current_shape = arr.shape
-    
+
     # Check if the current shape is already equal to the desired shape
     if current_shape == img_size:
         print("The input array already has the desired shape.")
@@ -72,7 +73,7 @@ def reshape_image(arr, img_size):
     # Check if the current shape is larger than the desired shape in any dimension
     if any(cs > ds for cs, ds in zip(current_shape, img_size)):
         # Crop the input array from the end of the dimension where it occurs
-        arr = arr[:img_size[0], :img_size[1], :img_size[2], :img_size[3]]
+        arr = arr[:img_size[0], :img_size[1], :img_size[2], :]
         print("The input array has been cropped to the desired shape.")
     
     # Check if the current shape is smaller than the desired shape in any dimension
@@ -85,6 +86,7 @@ def reshape_image(arr, img_size):
                                   (0, 0)), mode='constant')
         print("The input array has been padded to the desired shape.")
     
+
     # If none of the above conditions are met, return the input array as is
     return arr
 
@@ -105,6 +107,7 @@ def stack_with_pad(arr_0,arr_1):
 def get_batched(folder_tuple,img_size):
     folder_0=load_landmark_data(f"{folder_tuple[0]}/general_transform")
     folder_1=load_landmark_data(f"{folder_tuple[1]}/general_transform")
+    
     arr=jnp.stack([reshape_image(folder_0['study'],img_size),reshape_image(folder_1['study'],img_size)])
     From=stack_with_pad(folder_0['From'],folder_1['From'])
     To=stack_with_pad(folder_0['To'],folder_1['To'])
@@ -114,7 +117,7 @@ def get_dataset(folder_path,img_size):
     folder_names = [os.path.join(folder_path, name) for name in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, name))]
     folder_names= list(filter(lambda el: "pat" in el, folder_names))
     folder_tuples = list(itertools.zip_longest(*[iter(folder_names)] * 2))
-    folder_tuples=folder_tuples[0:19]
+    # folder_tuples=folder_tuples[0:19]
     return [get_batched(folder_tuple,img_size) for folder_tuple in folder_tuples]
 
 
