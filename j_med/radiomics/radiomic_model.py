@@ -21,7 +21,7 @@ import shap
 import sklearn
 import pickle
 from pathlib import Path
-
+from sklearn.model_selection import KFold
 # mrmr_selection,shap,ngboost
 
 
@@ -74,8 +74,8 @@ def get_tree_hyper_params(trial):
     splitter="random"#trial.suggest_categorical("splitter", ["best","random"])
     max_features=None#trial.suggest_categorical("max_features", ["sqrt","log2",None])
     # max_leaf_nodesint=trial.suggest_categorical("max_leaf_nodesint", [])
-    max_depth=5#trial.suggest_int("max_depth", 1,10)
-    min_samples_leaf=3#trial.suggest_int("min_samples_leaf", 1,3)
+    max_depth=3#trial.suggest_int("max_depth", 1,10)
+    min_samples_leaf=1#trial.suggest_int("min_samples_leaf", 1,3)
     min_impurity_decrease= 0.2307277162959608#trial.suggest_float("min_impurity_decrease", 0.0,0.3)
 
     return sklearn.tree.DecisionTreeRegressor(criterion=criterion,splitter=splitter,max_depth=max_depth,max_features=max_features,min_samples_leaf=min_samples_leaf
@@ -104,7 +104,7 @@ def clasify( main_df_val,main_df_train,y_cols,chosen_y_col,num_classes,K,to_disp
     Y_train = main_df_train[chosen_y_col]
     Y_test = main_df_val[chosen_y_col]
 
-    print(f"X_train {X_train} Y_train {Y_train}")
+    # print(f"X_train {X_train} Y_train {Y_train}")
 
     # select top K features using mRMR
     selected_features = mrmr_classif(X=X_train, y=Y_train, K=7,n_jobs=1)
@@ -118,7 +118,7 @@ def clasify( main_df_val,main_df_train,y_cols,chosen_y_col,num_classes,K,to_disp
 
 
 
-    # # print(f"yyyyyyyyy {Y_train.to_numpy().astype(int)}")
+    print(f"yyyyyyyyy Y_train {len(Y_train)}  {np.unique(Y_train)} X_train {len(X_train)}")
     ngb_cat = NGBClassifier(Dist=k_categorical(num_classes), verbose=True
                             ,Base=Base
                             ,n_estimators=n_estimators
@@ -177,40 +177,48 @@ def clasify( main_df_val,main_df_train,y_cols,chosen_y_col,num_classes,K,to_disp
 def classify_full():
     
     # K=20
-    K=7
+    K=5
     # X, y = make_classification(n_samples = 1000, n_features = 50, n_informative = 10, n_redundant = 40)
     res_path=""
-    main_df=pd.read_csv("/workspaces/pilot_lymphoma/data/extracted_features_pet2.csv")
+    main_df=pd.read_csv("/workspaces/pilot_lymphoma/data/extracted_features_pet_trimmedB.csv")
 
     # Get first 20 percent of rows
-    main_df_val = main_df.head(int(len(main_df) * 0.2))
-    main_df_train = main_df.tail(int(len(main_df) * 0.8))
+    # main_df_val = main_df.head(int(len(main_df) * 0.2))
+    # main_df_train = main_df.tail(int(len(main_df) * 0.8))
 
     y_cols=["pat_id","lesion_num","study_0_or_1","Deauville","lab_path","mod_name"]#,"vol_in_mm3"
+    main_df = main_df.loc[:, ~main_df.columns.str.contains('Unnamed')]
     # clinical_cols=["dre","psa","age"]
     # clinical_cols=["psa","age","dre"]
     # chosen_y_col="is_cancer"
     # chosen_y_col="isup"
     # chosen_y_col="isup_simple"
+    main_df["Deauville"]=main_df["Deauville"].astype(int)-1
     chosen_y_col="Deauville"
     # num_classes=2
-    num_classes=6
+    num_classes=5
 
-    n_estimators=866#trial.suggest_int("n_estimators", 100,2000)   
+    n_estimators=6#trial.suggest_int("n_estimators", 100,2000)   
     learning_rate=0.02639867572400997#trial.suggest_float("learning_rate", 0.00001,0.1)   
     minibatch_frac = 0.7561751607203051#trial.suggest_float("minibatch_frac", 0.7,1.0) 
+    kf = KFold(n_splits=5, shuffle=True)
+    res_list=[]
+    for train_index, val_index in kf.split(main_df):
+        main_df_train = main_df.iloc[train_index]
+        main_df_val = main_df.iloc[val_index]
 
-   
-    # clasify( main_df_val,main_df_train,y_cols,clinical_cols,chosen_y_col,num_classes,K)
-    # clasify( main_df_val,main_df_train,y_cols,clinical_cols,chosen_y_col,num_classes,K)
-    Base=get_tree_hyper_params([])    
-    res=clasify( main_df_val,main_df_train,y_cols,chosen_y_col,num_classes,K,False,Base,n_estimators,learning_rate,minibatch_frac)
+        # clasify( main_df_val,main_df_train,y_cols,clinical_cols,chosen_y_col,num_classes,K)
+        # clasify( main_df_val,main_df_train,y_cols,clinical_cols,chosen_y_col,num_classes,K)
+        Base=get_tree_hyper_params([])    
+        res=clasify( main_df_val,main_df_train,y_cols,chosen_y_col,num_classes,K,False,Base,n_estimators,learning_rate,minibatch_frac)
+        res_list.append(res)
     return res
 
 
     # in case of clasyfing isup we need to take a maximum of the isup values for each lesion
 
-classify_full()
+whole_res=classify_full()
+print(f"whole_res {np.mean(whole_res)}")
 
 # database_name="nat"
 # experiment_name="nat_199"
