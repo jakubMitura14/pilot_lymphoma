@@ -166,7 +166,7 @@ def initt(rng_2,cfg:ml_collections.config_dict.FrozenConfigDict,model):
         # optax.lion(learning_rate=cfg.learning_rate)
         #optax.lion(learning_rate=decay_scheduler)
         # optax.fromage(learning_rate=0.003)
-        optax.nadamw(learning_rate=0.0001)
+        optax.nadamw(learning_rate=cfg.learning_rate)
         
         )
   return train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx)
@@ -246,13 +246,13 @@ def random_rotate_translate(image: np.ndarray, max_rotate: float = 360.0, max_tr
             translate_params=ensure_tuple_rep(translate_params, 3),
             padding_mode="border",
         ),
-        RandShiftIntensityd(keys="img",offsets=1.0,prob=0.6),
-        RandScaleIntensityd(keys="img",factors=1.0,prob=0.6),
-        Rand3DElasticd(keys="img",sigma_range=(5, 7), magnitude_range=(50, 150),prob=0.6),
-        # RandAdjustContrastd(keys="img"),
-        # RandGaussianSmoothd(keys="img"),
-        # RandGaussianSharpend(keys="img"),
-        RandRicianNoised(keys="img",prob=0.6),
+        # RandShiftIntensityd(keys="img",offsets=1.0,prob=0.6),
+        # RandScaleIntensityd(keys="img",factors=1.0,prob=0.6),
+        # Rand3DElasticd(keys="img",sigma_range=(3, 30), magnitude_range=(50, 450),prob=0.8),
+        # # RandAdjustContrastd(keys="img"),
+        # # RandGaussianSmoothd(keys="img"),
+        # # RandGaussianSharpend(keys="img"),
+        # RandRicianNoised(keys="img",prob=0.6),
         
     ])
 
@@ -308,7 +308,7 @@ def main_train(cfg):
     dataset_curr_val=[dataset[i] for i in val_set]
     for epoch in range(1, cfg.total_steps):
         is_pretraining=False
-        if(epoch<300):
+        if(epoch<400):
           is_pretraining=True
         prng, rng_loop = jax.random.split(prng, 2)
         metres=[]
@@ -328,18 +328,44 @@ def main_train(cfg):
           imm_now=curr_data["study"]
           imm_now_shape=imm_now.shape
           if(is_pretraining):
-            random_number = np.random.randint(2)*2
-            c_n=random_number,(random_number)
+            random_number = np.random.randint(2)
+            # random_number = np.random.randint(2)*2
+            c_n=random_number,(random_number+1)
             cc=np.array(curr_data["study"])
             cc=einops.rearrange(cc,'b h w d c -> b c h d w')
             
-            augmented_study = [random_rotate_translate(cc[0,c_n[0]:c_n[1],:,:,:]),random_rotate_translate(cc[1,c_n[0]:c_n[1],:,:,:])]
+            augmented_study = [random_rotate_translate( einops.rearrange(cc[0,c_n[0],:,:,:]," w h c -> 1 w h c"))
+                               ,random_rotate_translate(einops.rearrange(cc[1,c_n[0],:,:,:]," w h c -> 1 w h c"))]
             augmented_study_im=jnp.stack([np.array(augmented_study[0][0]),np.array(augmented_study[1][0])])
             augmented_study_rot=jnp.stack([np.array(augmented_study[0][1]),np.array(augmented_study[1][1])])
-
             imm_now=einops.rearrange(augmented_study_im,'b c h d w -> b h w d c')
-            imm_now=jnp.concatenate([imm_now[:,:,:,:,c_n[0]:c_n[1]],curr_data["study"]],axis=-1)
+            imm_now=jnp.concatenate([imm_now, einops.rearrange(curr_data["study"][:,:,:,:,c_n[0]],"b h w d-> b h w d 1")],axis=-1)
+          ### apply thhose transforms always  
+          transform = Compose([
+            RandShiftIntensityd(keys="img",offsets=1.0,prob=0.6),
+            RandScaleIntensityd(keys="img",factors=1.0,prob=0.6),
+            Rand3DElasticd(keys="img",sigma_range=(5, 8), magnitude_range=(100, 200),prob=0.8),
+            # RandAdjustContrastd(keys="img"),
+            # RandGaussianSmoothd(keys="img"),
+            # RandGaussianSharpend(keys="img"),
+            RandRicianNoised(keys="img",prob=0.6),
             
+          ])
+
+
+          # Apply the transform
+          imm_now=np.array(einops.rearrange(imm_now,'b h w d c-> b c h w d'))
+
+          # transformed_image_0 = transform({"img": imm_now[0,:,:,:,:]})["img"].cpu().numpy()
+          # transformed_image_1 = transform({"img": imm_now[1,:,:,:,:]})["img"].cpu().numpy()
+          # with mp.Pool(2) as p:
+          imm_now = list(map(transform, [{"img": imm_now[0,:,:,:,:]},{"img": imm_now[1,:,:,:,:]}]))
+          imm_now=list(map(lambda el: el["img"].cpu().numpy(),imm_now))
+          imm_now=jnp.stack(imm_now)
+          imm_now=einops.rearrange(imm_now,'b c h d w -> b h w d c')
+            
+    
+      
             # # Update the current study with the augmented study
             # curr_data["study"] = jnp.stack(augmented_study)
           state,loss,metr=train_epoch(imm_now,curr_data["From"],curr_data["To"],epoch,index

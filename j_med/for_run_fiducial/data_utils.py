@@ -37,7 +37,8 @@ def join_ct_suv(ct: sitk.Image, suv: sitk.Image,ct1: sitk.Image, suv1: sitk.Imag
     ct_arr_1=sitk.GetArrayFromImage(ct1)
     suv_arr_1=sitk.GetArrayFromImage(suv1)
     
-    res=jnp.stack([jnp.array(suv_arr),jnp.array(ct_arr),jnp.array(ct_arr_1),jnp.array(suv_arr_1)],axis=-1)
+    res=jnp.stack([jnp.array(suv_arr),jnp.array(suv_arr_1)],axis=-1)
+    # res=jnp.stack([jnp.array(suv_arr),jnp.array(ct_arr),jnp.array(suv_arr_1),jnp.array(ct_arr_1)],axis=-1)
     return res
 
 def load_landmark_data(folder_path:str):

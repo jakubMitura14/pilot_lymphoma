@@ -6,19 +6,16 @@ from ml_collections import config_dict
 def get_cfg():
     cfg = config_dict.ConfigDict()
     # cfg.total_steps=8000
-    cfg.total_steps=700
-    # cfg.learning_rate=0.00002 #used for warmup with average coverage loss
-    # cfg.learning_rate=0.0000001
-    # cfg.learning_rate=0.00000001
-    # cfg.learning_rate=0.00000000001
-    cfg.learning_rate=0.0001
-    # cfg.learning_rate=0.0000009
-    cfg.convolution_channels=4
+    cfg.total_steps=800
+
+    cfg.learning_rate=0.0003
+    cfg.convolution_channels=2
 
     cfg.batch_size=2
 
     cfg.batch_size_pmapped=np.max([cfg.batch_size//jax.local_device_count(),1])
-    cfg.img_size = (cfg.batch_size,488, 200, 200,4)
+    # cfg.img_size = (cfg.batch_size,488, 200, 200,4)
+    cfg.img_size = (cfg.batch_size,488, 200, 200,2)
    
     #just for numerical stability
     cfg.epsilon=0.0000000000001

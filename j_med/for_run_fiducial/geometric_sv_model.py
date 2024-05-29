@@ -64,8 +64,11 @@ class Pilot_model(nn.Module):
             ,Conv_trio(self.cfg,channels=self.cfg.convolution_channels,strides=(2,2,2))
             ,nn.LayerNorm()
             ,Conv_trio(self.cfg,channels=self.cfg.convolution_channels,strides=(2,2,2))
+            ,nn.LayerNorm()
             ,Conv_trio(self.cfg,channels=self.cfg.convolution_channels,strides=(2,2,2))
+            ,nn.LayerNorm()
             ,Conv_trio(self.cfg,channels=self.cfg.convolution_channels,strides=(2,2,2))
+            ,nn.LayerNorm()            
             ,Conv_trio(self.cfg,channels=1)
         ])(image)
 
