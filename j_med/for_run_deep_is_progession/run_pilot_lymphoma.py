@@ -62,7 +62,7 @@ from monai.utils import ensure_tuple_rep
 # import torchvision.transforms.functional as F
 # import torchvision
 
-from .geometric_sv_model import Pilot_modell
+from .geometric_sv_model import Pilot_model
 from .xla_utils import *
 from flax.training import checkpoints
 
@@ -151,7 +151,7 @@ def initt(rng_2,cfg:ml_collections.config_dict.FrozenConfigDict,model):
   img_size[0]=img_size[0]//jax.local_device_count()
   input=jnp.ones((img_size[1],img_size[2],img_size[3],img_size[4]))
   rng_main,rng_mean=jax.random.split(rng_2)
-  print(f"iiiiiiiiiiiii init {input.shape}")
+
   #jax.random.split(rng_2,num=1 )
   params = model.init({'params': rng_main,'to_shuffle':rng_mean  }, input)['params'] # initialize parameters by passing a template image #,'texture' : rng_mean
   # cosine_decay_scheduler = optax.cosine_decay_schedule(cfg.learning_rate, decay_steps=cfg.total_steps, alpha=0.95)#,exponent=1.1
@@ -179,7 +179,6 @@ def update_fn(state, image,from_landmarsk,to_landmarks,weights_pretraining, cfg,
   """Train for a single step."""
   def loss_fn(params,image,from_landmarsk,to_landmarks):
     conved=model.apply({'params': params}, image, rngs={'to_shuffle': random.PRNGKey(2)})#, rngs={'texture': random.PRNGKey(2)}
-    # print(f"aaaaaaaaaaaaa conved {conved.shape}  image {image.shape}  from_landmarsk {from_landmarsk.shape} to_landmarks {to_landmarks.shape}")
     loss=get_fiducial_loss(conved.flatten(),from_landmarsk,to_landmarks,(cfg.img_size[2],cfg.img_size[3],cfg.img_size[4]))
     return jnp.mean(loss)
 
@@ -273,7 +272,7 @@ def random_rotate_translate(image: np.ndarray, max_rotate: float = 360.0, max_tr
 def main_train(cfg):
 
   prng = jax.random.PRNGKey(42)
-  model = Pilot_modell(cfg)
+  model = Pilot_model(cfg)
   rng_2=jax.random.split(prng,num=jax.local_device_count() )
   # batch_size=2
   img_size = cfg.img_size 
@@ -328,25 +327,19 @@ def main_train(cfg):
           # Apply the augmentation to the current study
           imm_now=curr_data["study"]
           imm_now_shape=imm_now.shape
-
           if(is_pretraining):
-            # random_number = np.random.randint(2)
-            random_number = np.random.randint(2)*2
-            c_n=random_number,(random_number+2)
+            random_number = np.random.randint(2)
+            # random_number = np.random.randint(2)*2
+            c_n=random_number,(random_number+1)
             cc=np.array(curr_data["study"])
             cc=einops.rearrange(cc,'b h w d c -> b c h d w')
             
-            augmented_study = [random_rotate_translate( cc[0,c_n[0]:c_n[1],:,:,:])
-                               ,random_rotate_translate(cc[1,c_n[0]:c_n[1],:,:,:])]
-
-            # augmented_study = [random_rotate_translate( einops.rearrange(cc[0,c_n[0],:,:,:]," w h c -> 1 w h c"))
-            #                    ,random_rotate_translate(einops.rearrange(cc[1,c_n[0],:,:,:]," w h c -> 1 w h c"))]
+            augmented_study = [random_rotate_translate( einops.rearrange(cc[0,c_n[0],:,:,:]," w h c -> 1 w h c"))
+                               ,random_rotate_translate(einops.rearrange(cc[1,c_n[0],:,:,:]," w h c -> 1 w h c"))]
             augmented_study_im=jnp.stack([np.array(augmented_study[0][0]),np.array(augmented_study[1][0])])
             augmented_study_rot=jnp.stack([np.array(augmented_study[0][1]),np.array(augmented_study[1][1])])
             imm_now=einops.rearrange(augmented_study_im,'b c h d w -> b h w d c')
-            imm_now=jnp.concatenate([imm_now, curr_data["study"][:,:,:,:,c_n[0]:c_n[1]]],axis=-1)
-            # imm_now=jnp.concatenate([imm_now, einops.rearrange(curr_data["study"][:,:,:,:,c_n[0]],"b h w d-> b h w d 1")],axis=-1)
-
+            imm_now=jnp.concatenate([imm_now, einops.rearrange(curr_data["study"][:,:,:,:,c_n[0]],"b h w d-> b h w d 1")],axis=-1)
           ### apply thhose transforms always  
           transform = Compose([
             RandShiftIntensityd(keys="img",offsets=1.0,prob=0.9),

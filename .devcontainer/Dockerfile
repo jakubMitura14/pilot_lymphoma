@@ -2,70 +2,70 @@ FROM nvcr.io/nvidia/jax:24.04-py3
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        software-properties-common \
-        build-essential \
-        curl \
-        git \
-        libomp-dev \
-        ffmpeg \
-        libjpeg-turbo8 \
-        libblas-dev \
-        liblapack-dev \
-        gfortran \
-        libblosc-dev \
-        libbrotli-dev \ 
-        bzip2 \
-        libc-ares-dev \
-        libcfitsio-dev \
-        dbus \
-        expat \
-        fontconfig \
-        fonttools \
-        # freetype \
-        libicu-dev 
+    software-properties-common \
+    build-essential \
+    curl \
+    git \
+    libomp-dev \
+    ffmpeg \
+    libjpeg-turbo8 \
+    libblas-dev \
+    liblapack-dev \
+    gfortran \
+    libblosc-dev \
+    libbrotli-dev \ 
+    bzip2 \
+    libc-ares-dev \
+    libcfitsio-dev \
+    dbus \
+    expat \
+    fontconfig \
+    fonttools \
+    # freetype \
+    libicu-dev 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        # libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-doc gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio \
-        giflib-tools \
-        libjpeg-dev \
-        liblcms2-dev \
-        # liblerc-dev \
-        libaec-dev \
-        libblas-dev \
-        # libcblas-dev \
-        # libcurl-dev \
-        libdeflate-tools \
-        libedit-dev \
-        libev-dev \
-        libffi-dev \
-        # libgcc-7-dev \
-        # libgfortran4 \
-        libnghttp2-dev \
-        libpng-dev \
-        zlib1g-dev \
-        libssh2-1-dev \
-        libstdc++6 \
-        libtiff-dev \
-        uuid-dev \
-        libwebp-dev 
+    # libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-doc gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio \
+    giflib-tools \
+    libjpeg-dev \
+    liblcms2-dev \
+    # liblerc-dev \
+    libaec-dev \
+    libblas-dev \
+    # libcblas-dev \
+    # libcurl-dev \
+    libdeflate-tools \
+    libedit-dev \
+    libev-dev \
+    libffi-dev \
+    # libgcc-7-dev \
+    # libgfortran4 \
+    libnghttp2-dev \
+    libpng-dev \
+    zlib1g-dev \
+    libssh2-1-dev \
+    libstdc++6 \
+    libtiff-dev \
+    uuid-dev \
+    libwebp-dev 
 RUN apt-get update && apt-get install -y --no-install-recommends \        
-        libxcb-randr0-dev libxcb-xtest0-dev libxcb-xinerama0-dev libxcb-shape0-dev libxcb-xkb-dev \
-        libxml2-dev \
-        libzopfli-dev \
-        lz4 \
-        intel-mkl \
-        libncurses5-dev libncursesw5-dev \
-        #openjpeg-tools \
-        libssl-dev \ 
-        # qt5-default \
-        libreadline-dev \
-        sqlite3 
-        # python3-tk \
-        # xorg \
-        # openbox \
-        # xz-utils 
-        # python-yaml \
-        # zlib1g-dev \
-        # zstd
+    libxcb-randr0-dev libxcb-xtest0-dev libxcb-xinerama0-dev libxcb-shape0-dev libxcb-xkb-dev \
+    libxml2-dev \
+    libzopfli-dev \
+    lz4 \
+    intel-mkl \
+    libncurses5-dev libncursesw5-dev \
+    #openjpeg-tools \
+    libssl-dev \ 
+    # qt5-default \
+    libreadline-dev \
+    sqlite3 
+# python3-tk \
+# xorg \
+# openbox \
+# xz-utils 
+# python-yaml \
+# zlib1g-dev \
+# zstd
 
 
 # RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin
@@ -142,9 +142,9 @@ RUN python3 -m  pip install \
     "jax[cuda12]"==0.4.28 \
     tensorflow
 
-    # jax-cosmo==0.1.0 \
-    # more-itertools \
-    # optax
+# jax-cosmo==0.1.0 \
+# more-itertools \
+# optax
 
 
 
@@ -213,9 +213,9 @@ RUN apt update
 #                 libpangoxft-1.0-0
 
 RUN mkdir ${HOME}/elastixBase && \
-cd ${HOME}/elastixBase && \
-wget https://github.com/SuperElastix/elastix/releases/download/5.0.1/elastix-5.0.1-linux.tar.bz2&& \
-tar -xf elastix-5.0.1-linux.tar.bz2
+    cd ${HOME}/elastixBase && \
+    wget https://github.com/SuperElastix/elastix/releases/download/5.0.1/elastix-5.0.1-linux.tar.bz2&& \
+    tar -xf elastix-5.0.1-linux.tar.bz2
 
 RUN cp ${HOME}/elastixBase/elastix-5.0.1-linux/lib/libANNlib-5.0.so ${HOME}/elastixBase/elastix-5.0.1-linux/bin/libANNlib-5.0.so
 RUN cp ${HOME}/elastixBase/elastix-5.0.1-linux/lib/libANNlib-5.0.so.1 ${HOME}/elastixBase/elastix-5.0.1-linux/bin/libANNlib-5.0.so.1

@@ -40,7 +40,7 @@ def collapse_dense(conved):
     return nn.Sequential([
         # nn.Dense(128) #Initializer expected to generate shape (128, 128) but got shape (16, 128)
         nn.Dense(200) 
-        ,nn.Dense(1)
+        ,nn.Dense(2)
         ,nn.sigmoid
     # ])(conved.flatten())
     ])(conved)

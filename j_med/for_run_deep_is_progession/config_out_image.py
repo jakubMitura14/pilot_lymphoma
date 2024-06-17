@@ -6,12 +6,17 @@ from ml_collections import config_dict
 def get_cfg():
     cfg = config_dict.ConfigDict()
     # cfg.total_steps=8000
-    cfg.total_steps=1000
-    cfg.learning_rate=0.0003
-    cfg.convolution_channels=80
-    cfg.batch_size=1
+    cfg.total_steps=100
+
+    cfg.learning_rate=0.00001
+    cfg.convolution_channels=20
+    cfg.num_classes=2
+    cfg.batch_size=2
+
     cfg.batch_size_pmapped=np.max([cfg.batch_size//jax.local_device_count(),1])
-    cfg.img_size = (cfg.batch_size,256, 124, 124,2)
+    cfg.img_size = (cfg.batch_size,488, 128, 128,4)
+    # cfg.img_size = (cfg.batch_size,488, 200, 200,2)
+    # cfg.img_size = (cfg.batch_size,488, 124, 124,4)
    
     #just for numerical stability
     cfg.epsilon=0.0000000000001

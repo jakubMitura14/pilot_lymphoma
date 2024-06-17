@@ -39,11 +39,13 @@ class Conv_trio(nn.Module):
 def collapse_dense(conved):
     return nn.Sequential([
         # nn.Dense(128) #Initializer expected to generate shape (128, 128) but got shape (16, 128)
-        nn.Dense(200) 
-        ,nn.Dense(1)
-        ,nn.sigmoid
-    # ])(conved.flatten())
-    ])(conved)
+        nn.Dense(1200)
+        ,jax.nn.gelu
+        ,nn.Dense(800)          
+        # ,jax.nn.gelu
+        ,nn.Dense(2)
+        # ,nn.sigmoid
+    ])(conved.flatten())
 
 
 v_collapse_dense=jax.vmap(collapse_dense,in_axes=(0))
@@ -74,12 +76,11 @@ class Pilot_modell(nn.Module):
             ,Conv_trio(self.cfg,channels=1)
         ])(image)
 
-        # conved=v_collapse_dense(einops.rearrange(conved,'b a e c -> b (a e c)'))
-        conved=v_collapse_dense(conved)
+        conved=collapse_dense(conved)
 
 
         
 
-        return conved*360
+        return conved
 
 

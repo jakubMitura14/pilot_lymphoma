@@ -144,11 +144,10 @@ def get_fiducial_loss(weights,from_landmarsk,to_landmarks,image_shape,is_pretrai
     
 
 
-@functools.partial(jax.pmap,static_broadcasted_argnums=(1,2), axis_name='ensemble')#,static_broadcasted_argnums=(2)
 def initt(rng_2,cfg:ml_collections.config_dict.FrozenConfigDict,model):
   """Creates initial `TrainState`."""
   img_size=list(cfg.img_size)
-  img_size[0]=img_size[0]//jax.local_device_count()
+  # img_size[0]=img_size[0]//jax.local_device_count()
   input=jnp.ones((img_size[1],img_size[2],img_size[3],img_size[4]))
   rng_main,rng_mean=jax.random.split(rng_2)
   print(f"iiiiiiiiiiiii init {input.shape}")
@@ -173,7 +172,6 @@ def initt(rng_2,cfg:ml_collections.config_dict.FrozenConfigDict,model):
 
 
 
-@partial(jax.pmap, axis_name="batch",static_broadcasted_argnums=(5,6,7))
 def update_fn(state, image,from_landmarsk,to_landmarks,weights_pretraining, cfg,model,is_pretraining):
 
   """Train for a single step."""
@@ -194,11 +192,9 @@ def update_fn(state, image,from_landmarsk,to_landmarks,weights_pretraining, cfg,
 
 
 
-@partial(jax.pmap, axis_name="batch",static_broadcasted_argnums=(4,5))
 def simple_apply(state, image,from_landmarsk,to_landmarks, cfg,model):
   weights=model.apply({'params': state.params}, image, rngs={'to_shuffle': random.PRNGKey(2)}).flatten()#, rngs={'texture': random.PRNGKey(2)}
   center_point=(jnp.asarray((cfg.img_size[2],cfg.img_size[3],cfg.img_size[4])) - 1.) / 2
-  # print(f"to_landmarks {to_landmarks.shape}  center_point {center_point.shape} weights {weights.shape}")
   res=rotate_and_translate(to_landmarks, center_point, weights[0:3],weights[3:6])
   #calculate the square distance between transformed fiducial points and fiducial points on fixed image 
   #we ignore points indicated as smaller than 0 (padding)
@@ -222,7 +218,7 @@ def train_epoch(batch_images,from_landmarsk,to_landmarks,epoch,index
 
 
   state,loss=update_fn(state, batch_images, from_landmarsk,to_landmarks,weights_pretraining,cfg,model,is_pretraining)
-  epoch_loss.append(jnp.mean(jax_utils.unreplicate(loss).flatten())) 
+  epoch_loss.append(jnp.mean(loss.flatten())) 
   metr=simple_apply(state, batch_images, from_landmarsk,to_landmarks,cfg,model)
 
   # print(f"metr {np.mean(metr)}")
@@ -274,12 +270,18 @@ def main_train(cfg):
 
   prng = jax.random.PRNGKey(42)
   model = Pilot_modell(cfg)
-  rng_2=jax.random.split(prng,num=jax.local_device_count() )
+  rng_2=jax.random.split(prng,num=1)
   # batch_size=2
   img_size = cfg.img_size 
   folder_path='/root/data/prepared_registered'
   checkpoints_fold="/workspaces/pilot_lymphoma/data/fiducial_model_checkPoints"
   dataset=get_dataset(folder_path,img_size)
+  dataset_a=list(map(lambda el: {'study': jnp.expand_dims(el['study'][0,:,:,:,:],0),'From' :jnp.expand_dims(el['From'][0,:,:],0), 'To': jnp.expand_dims(el['To'][0,:,:],0)  }, dataset))
+  dataset_b=list(map(lambda el: {'study': jnp.expand_dims(el['study'][1,:,:,:,:],0),'From' :jnp.expand_dims(el['From'][1,:,:],0), 'To': jnp.expand_dims(el['To'][1,:,:],0)  }, dataset))
+  dataset=dataset_a+dataset_b
+  print(f"rrrrrrrrrrrr {dataset_b[1]['study'].shape}  From {dataset_b[1]['From'].shape}")
+  # {'study':arr, 'From':From,'To':To}
+  
   dataset_len=len(dataset)
   dataset_indicies=np.arange(0,dataset_len)
   
@@ -299,7 +301,7 @@ def main_train(cfg):
 
   
   
-    state= initt(rng_2,cfg,model)  
+    state= initt(prng,cfg,model)  
     # metric = jm.metrics.Accuracy()
 
   
@@ -309,7 +311,7 @@ def main_train(cfg):
     dataset_curr_val=[dataset[i] for i in val_set]
     for epoch in range(1, cfg.total_steps):
         is_pretraining=False
-        if(epoch<450):
+        if(epoch<500):
           is_pretraining=True
         prng, rng_loop = jax.random.split(prng, 2)
         metres=[]
@@ -330,28 +332,28 @@ def main_train(cfg):
           imm_now_shape=imm_now.shape
 
           if(is_pretraining):
-            # random_number = np.random.randint(2)
-            random_number = np.random.randint(2)*2
-            c_n=random_number,(random_number+2)
+            random_number = np.random.randint(2)
+            # random_number = np.random.randint(2)*2
+            # c_n=random_number,(random_number+2)
+            c_n=random_number,(random_number+1)
             cc=np.array(curr_data["study"])
             cc=einops.rearrange(cc,'b h w d c -> b c h d w')
             
-            augmented_study = [random_rotate_translate( cc[0,c_n[0]:c_n[1],:,:,:])
-                               ,random_rotate_translate(cc[1,c_n[0]:c_n[1],:,:,:])]
+            # augmented_study = [random_rotate_translate( cc[0,c_n[0]:c_n[1],:,:,:])
+            #                    ,random_rotate_translate(cc[1,c_n[0]:c_n[1],:,:,:])]
 
-            # augmented_study = [random_rotate_translate( einops.rearrange(cc[0,c_n[0],:,:,:]," w h c -> 1 w h c"))
-            #                    ,random_rotate_translate(einops.rearrange(cc[1,c_n[0],:,:,:]," w h c -> 1 w h c"))]
-            augmented_study_im=jnp.stack([np.array(augmented_study[0][0]),np.array(augmented_study[1][0])])
-            augmented_study_rot=jnp.stack([np.array(augmented_study[0][1]),np.array(augmented_study[1][1])])
+            augmented_study = random_rotate_translate( einops.rearrange(cc[0,c_n[0],:,:,:]," w h c -> 1 w h c"))
+            augmented_study_im=jnp.stack([np.array(augmented_study[0])])
+            augmented_study_rot=jnp.stack([np.array(augmented_study[1])])
             imm_now=einops.rearrange(augmented_study_im,'b c h d w -> b h w d c')
-            imm_now=jnp.concatenate([imm_now, curr_data["study"][:,:,:,:,c_n[0]:c_n[1]]],axis=-1)
-            # imm_now=jnp.concatenate([imm_now, einops.rearrange(curr_data["study"][:,:,:,:,c_n[0]],"b h w d-> b h w d 1")],axis=-1)
+            # imm_now=jnp.concatenate([imm_now, curr_data["study"][:,:,:,:,c_n[0]:c_n[1]]],axis=-1)
+            imm_now=jnp.concatenate([imm_now, einops.rearrange(curr_data["study"][:,:,:,:,c_n[0]],"b h w d-> b h w d 1")],axis=-1)
 
           ### apply thhose transforms always  
           transform = Compose([
             RandShiftIntensityd(keys="img",offsets=1.0,prob=0.9),
             RandScaleIntensityd(keys="img",factors=1.0,prob=0.9),
-            Rand3DElasticd(keys="img",sigma_range=(5, 8), magnitude_range=(100, 200),prob=0.8),
+            # Rand3DElasticd(keys="img",sigma_range=(5, 8), magnitude_range=(100, 200),prob=0.8),
             # RandAdjustContrastd(keys="img"),
             # RandGaussianSmoothd(keys="img"),
             # RandGaussianSharpend(keys="img"),
@@ -364,16 +366,14 @@ def main_train(cfg):
           imm_now=np.array(einops.rearrange(imm_now,'b h w d c-> b c h w d'))
 
           # with mp.Pool(2) as p:
-          imm_now = list(map(transform, [{"img": imm_now[0,:,:,:,:]},{"img": imm_now[1,:,:,:,:]}]))
-          imm_now=list(map(lambda el: el["img"].cpu().numpy(),imm_now))
-          imm_now=jnp.stack(imm_now)
+          imm_now = transform({"img": imm_now[0,:,:,:,:]})["img"].cpu().numpy()
+          imm_now=jnp.stack([imm_now])
           imm_now=einops.rearrange(imm_now,'b c h d w -> b h w d c')
             
     
       
-            # # Update the current study with the augmented study
-            # curr_data["study"] = jnp.stack(augmented_study)
-          state,loss,metr=train_epoch(imm_now,curr_data["From"],curr_data["To"],epoch,index
+            # Update the current study with the augmented study
+          state,loss,metr=train_epoch(imm_now[0,:,:,:,:],curr_data["From"][0,:,:],curr_data["To"][0,:,:],epoch,index
           # state,loss,metr=train_epoch(curr_data["study"],curr_data["From"],curr_data["To"],epoch,index
                                           ,model,cfg
                                           ,rng_loop,
@@ -383,7 +383,11 @@ def main_train(cfg):
           metres.append(metr)
           
           losses.append(loss)
+          
         # checkpoints.save_checkpoint(f"{checkpoints_fold}/{jnp.mean(metr)}__{epoch}", jax_utils.unreplicate(state), step=step)
+        shutil.rmtree(f"{checkpoints_fold}/now", ignore_errors=True)
+        checkpoints.save_checkpoint(f"{checkpoints_fold}/now", state, step=step)
+        
         for index in range(len(dataset_curr_val)) :
           curr_data_val=dataset_curr_val[index]
           metr_val=simple_apply(state, curr_data_val["study"],curr_data_val["From"],curr_data_val["To"], cfg,model)
@@ -400,16 +404,13 @@ def main_train(cfg):
             tf.summary.scalar(f"f{fold_index}_metr_val", np.mean(np.mean(metres_val)) ,       step=epoch)
 
 
-        # Reset the metric
-
-
-
+# Reset the metric
 main_train(cfg)
 
 
 # tensorboard --logdir=/workspaces/pilot_lymphoma/data/tensor_board
 
-# python3 -m j_med.for_run_fiducial.run_pilot_lymphoma
+# python3 -m j_med.for_run_fiducial.run_pilot_lymphoma_single_gpu
 
 
 
