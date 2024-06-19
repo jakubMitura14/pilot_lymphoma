@@ -275,13 +275,13 @@ def main_train(cfg):
           # print(f"iiiiiiiiiii imm_now_shape {imm_now_shape}")
           ### apply thhose transforms always  
           transform = Compose([
-            RandShiftIntensityd(keys="img",offsets=1.0,prob=0.9),
-            RandScaleIntensityd(keys="img",factors=1.0,prob=0.9),
-            # Rand3DElasticd(keys="img",sigma_range=(5, 8), magnitude_range=(100, 200),prob=0.8),
+            # RandShiftIntensityd(keys="img",offsets=1.0,prob=0.9),
+            # RandScaleIntensityd(keys="img",factors=1.0,prob=0.9),
+            Rand3DElasticd(keys="img",sigma_range=(5, 8), magnitude_range=(100, 200),prob=0.2),
             # RandAdjustContrastd(keys="img"),
             # RandGaussianSmoothd(keys="img"),
             # RandGaussianSharpend(keys="img"),
-            RandRicianNoised(keys="img",prob=0.6),
+            RandRicianNoised(keys="img",prob=0.2),
             
           ])
 
@@ -297,7 +297,7 @@ def main_train(cfg):
     
       
             # Update the current study with the augmented study
-          state,loss,metricc=train_epoch(imm_now[0,:,:,:,:],curr_data["outcome"],epoch,index
+          state,loss,metricc=train_epoch(imm_now[0,:,:,:,:],curr_data["deauville"],epoch,index
                                           ,model,cfg
                                           ,rng_loop,
                                           state,is_pretraining,metric)
@@ -313,7 +313,7 @@ def main_train(cfg):
         
         for index in range(len(dataset_curr_val)) :
           curr_data_val=dataset_curr_val[index]
-          metric_vall=simple_apply(state, curr_data_val["study"],curr_data_val["outcome"], cfg,model,metric_val)
+          metric_vall=simple_apply(state, curr_data_val["study"],curr_data_val["deauville"], cfg,model,metric_val)
           metres_val.append(metric_vall)
         print(f"******* epoch {epoch} ")
         print(f"loss {np.mean(np.mean(losses))} ")
@@ -341,8 +341,7 @@ main_train(cfg)
 
 # tensorboard --logdir=/workspaces/pilot_lymphoma/data/tensor_board
 
-# python3 -m j_med.for_run_deep_is_progession.run_pilot_lymphoma_single_gpu
-
+# python3 -m j_med.for_run_deep_dauville.run_pilot_lymphoma_single_gpu
 
 
 
